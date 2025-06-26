@@ -1,0 +1,33 @@
+[package]
+name = "connect-four-bevy"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "connect_four_bevy"
+path = "src/lib.rs"
+
+[dependencies]
+bevy = { version = "0.12", features = ["dynamic_linking"] }
+rand = "0.8"
+
+[[bin]]
+name = "connect_four"
+path = "src/main.rs"
+
+[[example]]
+name = "game_demo"
+path = "examples/game_demo.rs"
+
+# Enable fast compile times during development
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+# Optimize for performance in release
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
