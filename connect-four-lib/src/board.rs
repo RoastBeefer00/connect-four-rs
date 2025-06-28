@@ -45,13 +45,13 @@ pub(crate) enum Column {
 impl From<Column> for usize {
     fn from(value: Column) -> Self {
         match value {
-            Column::One => 1,
-            Column::Two => 2,
-            Column::Three => 3,
-            Column::Four => 4,
-            Column::Five => 5,
-            Column::Six => 6,
-            Column::Seven => 7,
+            Column::One => 0,
+            Column::Two => 1,
+            Column::Three => 2,
+            Column::Four => 3,
+            Column::Five => 4,
+            Column::Six => 5,
+            Column::Seven => 6,
         }
     }
 }
@@ -59,13 +59,13 @@ impl From<Column> for usize {
 impl From<&Column> for usize {
     fn from(value: &Column) -> Self {
         match value {
-            Column::One => 1,
-            Column::Two => 2,
-            Column::Three => 3,
-            Column::Four => 4,
-            Column::Five => 5,
-            Column::Six => 6,
-            Column::Seven => 7,
+            Column::One => 0,
+            Column::Two => 1,
+            Column::Three => 2,
+            Column::Four => 3,
+            Column::Five => 4,
+            Column::Six => 5,
+            Column::Seven => 6,
         }
     }
 }
@@ -83,12 +83,12 @@ pub(crate) enum Row {
 impl From<Row> for usize {
     fn from(value: Row) -> Self {
         match value {
-            Row::One => 1,
-            Row::Two => 2,
-            Row::Three => 3,
-            Row::Four => 4,
-            Row::Five => 5,
-            Row::Six => 6,
+            Row::One => 0,
+            Row::Two => 1,
+            Row::Three => 2,
+            Row::Four => 3,
+            Row::Five => 4,
+            Row::Six => 5,
         }
     }
 }
@@ -96,12 +96,77 @@ impl From<Row> for usize {
 impl From<&Row> for usize {
     fn from(value: &Row) -> Self {
         match value {
-            Row::One => 1,
-            Row::Two => 2,
-            Row::Three => 3,
-            Row::Four => 4,
-            Row::Five => 5,
-            Row::Six => 6,
+            Row::One => 0,
+            Row::Two => 1,
+            Row::Three => 2,
+            Row::Four => 3,
+            Row::Five => 4,
+            Row::Six => 5,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn test_board_new_empty() {
+        let board = Board::new();
+        for row in Row::iter() {
+            for col in Column::iter() {
+                assert_eq!(board.get(row, col), None);
+            }
+        }
+    }
+
+    #[test]
+    fn test_insert_and_get_piece() {
+        let mut board = Board::new();
+        board.insert_piece(Row::Three, Column::Four, Player::One);
+        assert_eq!(board.get(Row::Three, Column::Four), Some(Player::One));
+        assert_eq!(board.get(Row::Two, Column::Four), None);
+    }
+
+    #[test]
+    fn test_is_slot_full_false_and_true() {
+        let mut board = Board::new();
+        let col = Column::Three;
+        // Initially false
+        assert_eq!(board.is_slot_full(&col), false);
+        // Fill entire column
+        for row in Row::iter() {
+            board.insert_piece(row, col, Player::Two);
+        }
+        assert_eq!(board.is_slot_full(&col), true);
+    }
+
+    #[test]
+    fn test_column_from_usize() {
+        assert_eq!(usize::from(Column::One), 0);
+        assert_eq!(usize::from(Column::Four), 3);
+        assert_eq!(usize::from(Column::Seven), 6);
+    }
+
+    #[test]
+    fn test_column_ref_from_usize() {
+        let col = Column::Three;
+        assert_eq!(usize::from(&col), 2);
+        let col = Column::Five;
+        assert_eq!(usize::from(&col), 4);
+    }
+
+    #[test]
+    fn test_row_from_usize() {
+        assert_eq!(usize::from(Row::One), 0);
+        assert_eq!(usize::from(Row::Six), 5);
+        assert_eq!(usize::from(Row::Four), 3);
+    }
+
+    #[test]
+    fn test_row_ref_from_usize() {
+        let row = Row::Two;
+        assert_eq!(usize::from(&row), 1);
+        let row = Row::Five;
+        assert_eq!(usize::from(&row), 4);
     }
 }
