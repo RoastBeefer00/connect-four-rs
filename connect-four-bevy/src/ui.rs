@@ -14,22 +14,14 @@ pub struct ResetButton;
 #[derive(Component)]
 pub struct ScoreText;
 
-#[derive(Resource)]
+#[derive(Resource, Default)]
 pub struct GameScore {
     pub red_wins: u32,
     pub yellow_wins: u32,
     pub draws: u32,
 }
 
-impl Default for GameScore {
-    fn default() -> Self {
-        Self {
-            red_wins: 0,
-            yellow_wins: 0,
-            draws: 0,
-        }
-    }
-}
+
 
 pub fn setup_ui(mut commands: Commands) {
     // UI Root
@@ -294,10 +286,8 @@ pub fn handle_keyboard_input(
     ];
 
     for (key, column) in key_to_column.iter() {
-        if keyboard_input.just_pressed(*key) {
-            if game_state.status == GameStatus::Playing && !game_state.is_column_full(*column) {
-                piece_drop_events.send(PieceDropEvent { column: *column });
-            }
+        if keyboard_input.just_pressed(*key) && game_state.status == GameStatus::Playing && !game_state.is_column_full(*column) {
+            piece_drop_events.send(PieceDropEvent { column: *column });
         }
     }
 }

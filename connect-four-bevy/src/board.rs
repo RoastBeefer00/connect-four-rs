@@ -2,10 +2,10 @@ use crate::events::*;
 use crate::game_logic::*;
 use bevy::prelude::*;
 
-pub const BOARD_WIDTH: f32 = 700.0;
-pub const BOARD_HEIGHT: f32 = 600.0;
-pub const CELL_SIZE: f32 = 80.0;
-pub const PIECE_RADIUS: f32 = 30.0;
+pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
+pub const BOARD_HEIGHT: f32 = CELL_SIZE * 6.0;
+pub const CELL_SIZE: f32 = 62.0;
+pub const PIECE_RADIUS: f32 = 24.0;
 pub const BOARD_COLOR: Color = Color::rgb(0.2, 0.4, 0.8);
 pub const HOLE_COLOR: Color = Color::rgb(0.1, 0.2, 0.4);
 pub const BOARD_OFFSET_Y: f32 = -60.0; // Offset to position board below UI
@@ -34,6 +34,11 @@ pub struct AnimatingPiece {
 
 #[derive(Component)]
 pub struct ColumnHighlight {
+    pub col: usize,
+}
+
+#[derive(Component)]
+pub struct PreviewPiece {
     pub col: usize,
 }
 
@@ -91,9 +96,27 @@ pub fn setup_board(mut commands: Commands) {
             },
             ColumnHighlight { col },
         ));
+
+        // Hovering preview piece for this column
+        commands.spawn((
+            SpriteBundle {
+                sprite: Sprite {
+                    color: Color::rgba(0.8, 0.2, 0.2, 0.7), // Preview piece color (red, semi-transparent)
+                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
+                    ..default()
+                },
+                // Place slightly above the top row
+                transform: Transform::from_translation(
+                    Vec3::new(x, BOARD_OFFSET_Y + BOARD_HEIGHT/2. + CELL_SIZE/2., 3.0)),
+                visibility: Visibility::Hidden,
+                ..default()
+            },
+            PreviewPiece { col },
+        ));
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn handle_input(
     _commands: Commands,
     mouse_input: Res<Input<MouseButton>>,
@@ -101,7 +124,10 @@ pub fn handle_input(
     camera: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
     mut piece_drop_events: EventWriter<PieceDropEvent>,
-    mut column_highlights: Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
+    mut param_set: ParamSet<(
+        Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
+        Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
+    )>,
 ) {
     let window = windows.single();
     let (camera, camera_transform) = camera.single();
@@ -117,8 +143,8 @@ pub fn handle_input(
         let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
 
         // Update column highlights
-        for (mut sprite, mut visibility, highlight) in column_highlights.iter_mut() {
-            if col >= 0 && col < 7 && highlight.col == col as usize {
+        for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
+            if (0..7).contains(&col) && highlight.col == col as usize {
                 if game_state.status == GameStatus::Playing
                     && !game_state.is_column_full(col as usize)
                 {
@@ -132,13 +158,27 @@ pub fn handle_input(
             }
         }
 
-        // Handle mouse clicks
-        if mouse_input.just_pressed(MouseButton::Left) {
-            if col >= 0 && col < 7 {
-                let col = col as usize;
-                if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                    piece_drop_events.send(PieceDropEvent { column: col });
+        // Update hovering preview piece color/visibility
+        for (mut sprite, mut visibility, preview) in param_set.p1().iter_mut() {
+            if (0..7).contains(&col) && preview.col == col as usize {
+                if game_state.status == GameStatus::Playing
+                    && !game_state.is_column_full(col as usize)
+                {
+                    *visibility = Visibility::Visible;
+                    sprite.color = game_state.current_player.color().with_a(0.7);
+                } else {
+                    *visibility = Visibility::Hidden;
                 }
+            } else {
+                *visibility = Visibility::Hidden;
+            }
+        }
+
+        // Handle mouse clicks
+        if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) {
+            let col = col as usize;
+            if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
+                piece_drop_events.send(PieceDropEvent { column: col });
             }
         }
     }

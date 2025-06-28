@@ -130,7 +130,7 @@ impl GameState {
         // Check in positive direction
         let mut r = row as i32 + d_row;
         let mut c = col as i32 + d_col;
-        while r >= 0 && r < 6 && c >= 0 && c < 7 {
+        while (0..6).contains(&r) && (0..7).contains(&c) {
             if let Some(p) = self.board[r as usize][c as usize] {
                 if p == player {
                     count += 1;
@@ -147,7 +147,7 @@ impl GameState {
         // Check in negative direction
         let mut r = row as i32 - d_row;
         let mut c = col as i32 - d_col;
-        while r >= 0 && r < 6 && c >= 0 && c < 7 {
+        while (0..6).contains(&r) && (0..7).contains(&c) {
             if let Some(p) = self.board[r as usize][c as usize] {
                 if p == player {
                     count += 1;
