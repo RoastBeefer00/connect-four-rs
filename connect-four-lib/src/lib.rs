@@ -1,4 +1,4 @@
 mod board;
 mod errors;
 mod game;
-mod player;
+pub mod player;
