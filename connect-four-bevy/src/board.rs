@@ -106,8 +106,11 @@ pub fn setup_board(mut commands: Commands) {
                     ..default()
                 },
                 // Place slightly above the top row
-                transform: Transform::from_translation(
-                    Vec3::new(x, BOARD_OFFSET_Y + BOARD_HEIGHT/2. + CELL_SIZE/2., 3.0)),
+                transform: Transform::from_translation(Vec3::new(
+                    x,
+                    BOARD_OFFSET_Y + BOARD_HEIGHT / 2. + CELL_SIZE / 2.,
+                    3.0,
+                )),
                 visibility: Visibility::Hidden,
                 ..default()
             },
@@ -115,6 +118,9 @@ pub fn setup_board(mut commands: Commands) {
         ));
     }
 }
+
+#[allow(clippy::too_many_arguments)]
+use crate::{WsMsg, WsTxChannel};
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_input(
@@ -128,57 +134,111 @@ pub fn handle_input(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
     )>,
+    ws_tx: Res<WsTxChannel>,
+    my_player: Res<crate::MyPlayerInfo>,
 ) {
-    let window = windows.single();
-    let (camera, camera_transform) = camera.single();
+    // Only allow move if I'm the active player
+    let is_my_turn = match my_player.color {
+        Some(crate::game_logic::Player::One) => {
+            game_state.current_player == crate::game_logic::Player::One
+        }
+        Some(crate::game_logic::Player::Two) => {
+            game_state.current_player == crate::game_logic::Player::Two
+        }
+        _ => false,
+    };
 
-    if let Some(cursor_pos) = window.cursor_position() {
-        // Convert screen coordinates to world coordinates
-        let world_pos = camera
-            .viewport_to_world_2d(camera_transform, cursor_pos)
-            .unwrap_or(Vec2::ZERO);
+    let _window = windows.single();
+    if let Ok((camera, camera_transform)) = camera.get_single() {
+        let window = match windows.get_single() {
+            Ok(win) => win,
+            Err(_) => {
+                return; // Exit if no single window
+            }
+        };
 
-        // Calculate which column the cursor is over
-        let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
-        let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
-
-        // Update column highlights
-        for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
-            if (0..7).contains(&col) && highlight.col == col as usize {
-                if game_state.status == GameStatus::Playing
-                    && !game_state.is_column_full(col as usize)
-                {
+        if let Some(cursor_pos) = window.cursor_position() {
+            // Convert screen coordinates to world coordinates
+            let world_pos = camera_transform
+                .compute_matrix()
+                .transform_point3(Vec3::new(
+                    cursor_pos.x - window.width() / 2.0,
+                    cursor_pos.y - window.height() / 2.0,
+                    0.0,
+                ))
+                .truncate();
+            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
+            let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
+            for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
+                if (0..7).contains(&col) && highlight.col == col as usize {
                     *visibility = Visibility::Visible;
                     sprite.color = Color::rgba(1.0, 1.0, 1.0, 0.2);
                 } else {
                     *visibility = Visibility::Hidden;
                 }
-            } else {
-                *visibility = Visibility::Hidden;
             }
         }
+    }
 
-        // Update hovering preview piece color/visibility
-        for (mut sprite, mut visibility, preview) in param_set.p1().iter_mut() {
-            if (0..7).contains(&col) && preview.col == col as usize {
-                if game_state.status == GameStatus::Playing
-                    && !game_state.is_column_full(col as usize)
-                {
-                    *visibility = Visibility::Visible;
-                    sprite.color = game_state.current_player.color().with_a(0.7);
+    if let Ok((camera, camera_transform)) = camera.get_single() {
+        let window = match windows.get_single() {
+            Ok(win) => win,
+            Err(_) => return,
+        };
+        if let Some(cursor_pos) = window.cursor_position() {
+            let world_pos = camera_transform
+                .compute_matrix()
+                .transform_point3(Vec3::new(
+                    cursor_pos.x - window.width() / 2.0,
+                    cursor_pos.y - window.height() / 2.0,
+                    0.0,
+                ))
+                .truncate();
+            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
+            let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
+
+            // Update column highlights
+            for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
+                if (0..7).contains(&col) && highlight.col == col as usize {
+                    if game_state.status == GameStatus::Playing
+                        && !game_state.is_column_full(col as usize)
+                    {
+                        *visibility = Visibility::Visible;
+                        sprite.color = Color::rgba(1.0, 1.0, 1.0, 0.2);
+                    } else {
+                        *visibility = Visibility::Hidden;
+                    }
                 } else {
                     *visibility = Visibility::Hidden;
                 }
-            } else {
-                *visibility = Visibility::Hidden;
             }
-        }
 
-        // Handle mouse clicks
-        if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) {
-            let col = col as usize;
-            if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                piece_drop_events.send(PieceDropEvent { column: col });
+            // Update hovering preview piece color/visibility
+            for (mut sprite, mut visibility, preview) in param_set.p1().iter_mut() {
+                if (0..7).contains(&col) && preview.col == col as usize {
+                    if game_state.status == GameStatus::Playing
+                        && !game_state.is_column_full(col as usize)
+                    {
+                        *visibility = Visibility::Visible;
+                        sprite.color = game_state.current_player.color().with_a(0.7);
+                    } else {
+                        *visibility = Visibility::Hidden;
+                    }
+                } else {
+                    *visibility = Visibility::Hidden;
+                }
+            }
+
+            // Handle mouse clicks
+            if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
+                let col = col as usize;
+                if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
+                    if let Some(tx) = &ws_tx.0 {
+                        let _ = tx.send(WsMsg::PlayerMove { col });
+                        println!("[WS][DEBUG] PlayerMove message sent for column {}", col);
+                    }
+                    // Do NOT locally drop a piece; wait for a WsMsg from the server.
+                }
             }
         }
     }
@@ -188,9 +248,12 @@ pub fn handle_piece_drop(
     mut commands: Commands,
     mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
+    my_player: Res<crate::MyPlayerInfo>,
+    ws_tx: Res<crate::WsTxChannel>,
 ) {
     for event in piece_drop_events.read() {
-        let current_player = game_state.current_player;
+        // Always use the game state's current player for piece color (matches latest move)
+        let piece_color = game_state.current_player;
 
         if let Some(target_row) = game_state.drop_piece(event.column) {
             // Calculate positions for animation
@@ -201,11 +264,11 @@ pub fn handle_piece_drop(
             let start_y_pos = start_y + CELL_SIZE; // Start above the board
             let target_y_pos = start_y - (target_row as f32 * CELL_SIZE);
 
-            // Spawn the animated piece
+            // Spawn the animated piece using the state player
             commands.spawn((
                 SpriteBundle {
                     sprite: Sprite {
-                        color: current_player.color(),
+                        color: piece_color.color(),
                         custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
                         ..default()
                     },
@@ -224,6 +287,7 @@ pub fn handle_piece_drop(
     }
 }
 
+
 pub fn animate_pieces(
     mut commands: Commands,
     time: Res<Time>,
@@ -241,10 +305,10 @@ pub fn animate_pieces(
 
         if anim.timer.finished() {
             // Convert to static piece - determine player from sprite color
-            let player = if sprite.color == Player::Red.color() {
-                Player::Red
+            let player = if sprite.color == Player::One.color() {
+                Player::One
             } else {
-                Player::Yellow
+                Player::Two
             };
 
             commands.entity(entity).remove::<AnimatingPiece>();

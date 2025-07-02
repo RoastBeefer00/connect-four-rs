@@ -1,23 +1,23 @@
 use bevy::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Player {
-    Red,
-    Yellow,
+    One,
+    Two,
 }
 
 impl Player {
     pub fn other(self) -> Self {
         match self {
-            Player::Red => Player::Yellow,
-            Player::Yellow => Player::Red,
+            Player::One => Player::Two,
+            Player::Two => Player::One,
         }
     }
 
     pub fn color(self) -> Color {
         match self {
-            Player::Red => Color::rgb(0.8, 0.2, 0.2),
-            Player::Yellow => Color::rgb(0.9, 0.9, 0.2),
+            Player::One => Color::rgb(0.8, 0.2, 0.2),
+            Player::Two => Color::rgb(0.9, 0.9, 0.2),
         }
     }
 }
@@ -41,7 +41,7 @@ impl Default for GameState {
     fn default() -> Self {
         Self {
             board: [[None; 7]; 6],
-            current_player: Player::Red,
+            current_player: Player::One,
             status: GameStatus::Playing,
             move_count: 0,
         }
@@ -180,7 +180,7 @@ mod tests {
     #[test]
     fn test_new_game() {
         let game = GameState::new();
-        assert_eq!(game.current_player, Player::Red);
+        assert_eq!(game.current_player, Player::One);
         assert_eq!(game.status, GameStatus::Playing);
         assert_eq!(game.move_count, 0);
     }
@@ -190,8 +190,8 @@ mod tests {
         let mut game = GameState::new();
         let row = game.drop_piece(0);
         assert_eq!(row, Some(5)); // Should drop to bottom row
-        assert_eq!(game.get_piece(5, 0), Some(Player::Red));
-        assert_eq!(game.current_player, Player::Yellow);
+        assert_eq!(game.get_piece(5, 0), Some(Player::One));
+        assert_eq!(game.current_player, Player::Two);
     }
 
     #[test]
@@ -217,7 +217,7 @@ mod tests {
         game.drop_piece(2); // Yellow
         game.drop_piece(3); // Red - should win
 
-        assert_eq!(game.status, GameStatus::Won(Player::Red));
+        assert_eq!(game.status, GameStatus::Won(Player::One));
     }
 
     #[test]
@@ -232,6 +232,6 @@ mod tests {
         game.drop_piece(1); // Yellow
         game.drop_piece(0); // Red - should win
 
-        assert_eq!(game.status, GameStatus::Won(Player::Red));
+        assert_eq!(game.status, GameStatus::Won(Player::One));
     }
 }
