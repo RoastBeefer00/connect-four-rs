@@ -1,5 +1,6 @@
 use crate::events::*;
 use crate::game_logic::*;
+use crate::socket::SocketIOMessageSender;
 use bevy::prelude::*;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
@@ -120,11 +121,12 @@ pub fn setup_board(mut commands: Commands) {
 }
 
 #[allow(clippy::too_many_arguments)]
-use crate::{WsMsg, WsTxChannel};
+use crate::WsMsg;
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_input(
     _commands: Commands,
+    sender: Res<SocketIOMessageSender>,
     mouse_input: Res<Input<MouseButton>>,
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
@@ -134,17 +136,12 @@ pub fn handle_input(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
     )>,
-    ws_tx: Res<WsTxChannel>,
     my_player: Res<crate::MyPlayerInfo>,
 ) {
     // Only allow move if I'm the active player
     let is_my_turn = match my_player.color {
-        Some(crate::game_logic::Player::One) => {
-            game_state.current_player == crate::game_logic::Player::One
-        }
-        Some(crate::game_logic::Player::Two) => {
-            game_state.current_player == crate::game_logic::Player::Two
-        }
+        Some(Player::One) => game_state.current_player == Player::One,
+        Some(Player::Two) => game_state.current_player == Player::Two,
         _ => false,
     };
 
@@ -233,14 +230,13 @@ pub fn handle_input(
             if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
                 let col = col as usize;
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                    if let Some(tx) = &ws_tx.0 {
-                        let msg = crate::WsMsg::PlayerMove { col };
-                        if let Ok(json) = serde_json::to_string(&msg) {
-                            let _ = tx.emit("move", json);
-                            println!("[WS][DEBUG] PlayerMove message sent for column {}", col);
-                        }
-                    }
-                    // Do NOT locally drop a piece; wait for a WsMsg from the server.
+                    sender
+                        .0
+                        .send(WsMsg::PlayerMove {
+                            id: my_player.clone().id.unwrap(),
+                            col,
+                        })
+                        .unwrap();
                 }
             }
         }
@@ -251,8 +247,7 @@ pub fn handle_piece_drop(
     mut commands: Commands,
     mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
-    my_player: Res<crate::MyPlayerInfo>,
-    ws_tx: Res<crate::WsTxChannel>,
+    _my_player: Res<crate::MyPlayerInfo>,
 ) {
     for event in piece_drop_events.read() {
         // Always use the game state's current player for piece color (matches latest move)
@@ -289,7 +284,6 @@ pub fn handle_piece_drop(
         }
     }
 }
-
 
 pub fn animate_pieces(
     mut commands: Commands,

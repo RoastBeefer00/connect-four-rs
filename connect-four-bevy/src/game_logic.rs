@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Component)]
 pub enum Player {
     One,
     Two,

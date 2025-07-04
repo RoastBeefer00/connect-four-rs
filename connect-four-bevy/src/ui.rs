@@ -37,21 +37,23 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         })
         .with_children(|parent| {
             // Top indicator
-            parent.spawn(TextBundle {
-                style: Style {
-                    margin: UiRect::all(Val::Px(10.0)),
-                    ..Default::default()
-                },
-                text: Text::from_section(
-                    "Your turn!",
-                    TextStyle {
-                        font: asset_server.load("default_font.ttf"),
-                        font_size: 30.0,
-                        color: Color::WHITE,
+            parent
+                .spawn(TextBundle {
+                    style: Style {
+                        margin: UiRect::all(Val::Px(10.0)),
+                        ..Default::default()
                     },
-                ),
-                ..Default::default()
-            }).insert(MyTurnIndicator);
+                    text: Text::from_section(
+                        "Your turn!",
+                        TextStyle {
+                            font: asset_server.load("default_font.ttf"),
+                            font_size: 30.0,
+                            color: Color::WHITE,
+                        },
+                    ),
+                    ..Default::default()
+                })
+                .insert(MyTurnIndicator);
 
             // Spacer
             parent.spawn(NodeBundle {
@@ -64,31 +66,31 @@ pub fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             });
 
             // Bottom reset button
-            parent.spawn(ButtonBundle {
-                style: Style {
-                    margin: UiRect::all(Val::Px(10.0)),
+            parent
+                .spawn(ButtonBundle {
+                    style: Style {
+                        margin: UiRect::all(Val::Px(10.0)),
+                        ..Default::default()
+                    },
+                    background_color: Color::BLUE.into(),
                     ..Default::default()
-                },
-                background_color: Color::BLUE.into(),
-                ..Default::default()
-            })
-            .insert(ResetButton)
-            .with_children(|button| {
-                button.spawn(TextBundle {
-                    text: Text::from_section(
-                        "Reset",
-                        TextStyle {
-                            font: asset_server.load("default_font.ttf"),
-                            font_size: 20.0,
-                            color: Color::WHITE,
-                        },
-                    ),
-                    ..Default::default()
+                })
+                .insert(ResetButton)
+                .with_children(|button| {
+                    button.spawn(TextBundle {
+                        text: Text::from_section(
+                            "Reset",
+                            TextStyle {
+                                font: asset_server.load("default_font.ttf"),
+                                font_size: 20.0,
+                                color: Color::WHITE,
+                            },
+                        ),
+                        ..Default::default()
+                    });
                 });
-            });
         });
 }
-
 
 pub fn handle_game_reset(
     _game_state: ResMut<GameState>,
@@ -135,9 +137,6 @@ pub fn handle_keyboard_input(
             && is_my_turn
         {
             piece_drop_events.send(PieceDropEvent { column: *column });
-            if let Some(tx) = &ws_tx.0 {
-                let _ = tx.send(crate::WsMsg::PlayerMove { col: *column });
-            }
         }
     }
 }
