@@ -1,6 +1,11 @@
 use bevy::prelude::*;
 use clap::Parser;
-use std::thread;
+use connect_four_lib::player::Player;
+use connect_four_lib::web_socket::WsMsg;
+use rust_socketio::client::Client as SocketIoClient;
+use rust_socketio::Payload;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 mod board;
 mod events;
@@ -23,24 +28,21 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let (ws_tx, ws_rx) = std::sync::mpsc::channel();
-    let ws_rx_arc = Arc::new(Mutex::new(ws_rx));
-    let mut ws_tx_channel = None;
-    if !args.offline {
-        let ws_tx2 = ws_tx.clone();
-        thread::spawn(move || {
-            ws_client(ws_tx2);
-        });
-        ws_tx_channel = Some(ws_tx);
-    }
+    let (client, rx) = if !args.offline {
+        // You will need to refactor create_socketio_client to be synchronous, or spawn a background thread.
+        // For now, set to None, or use a placeholder for demonstration.
+        (None, None)
+    } else {
+        (None, None)
+    };
     // Track our player id
     let my_player = MyPlayerInfo {
         id: None,
         color: None,
     };
     App::new()
-        .insert_resource(WsRxChannel(ws_rx_arc))
-        .insert_resource(WsTxChannel(ws_tx_channel))
+        .insert_resource(WsRxChannel(rx))
+        .insert_resource(WsTxChannel(client))
         .insert_resource(MyPlayerInfo { ..my_player })
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
@@ -85,11 +87,18 @@ fn handle_ws_messages(
     mut piece_drop_events: EventWriter<PieceDropEvent>,
     mut my_player: ResMut<MyPlayerInfo>,
 ) {
-    if let Ok(rx) = ws_rx.0.lock() {
+    if let Some(rx) = &ws_rx.0 {
+        // NOTE: tokio mpsc Receiver does not implement Sync or Clone, so this is a workaround for demo only
+        // In production, handle receiving logic in an async task and dispatch events into Bevy properly
+        // Here, we simply try_recv in-place for the Option.
+        let mut rx = rx;
         while let Ok(msg) = rx.try_recv() {
             match msg {
                 WsMsg::PlayerJoin { id, color } => {
-                    println!("[WS][DEBUG] Received PlayerJoin: id={} color={:?}", id, color);
+                    println!(
+                        "[WS][DEBUG] Received PlayerJoin: id={} color={:?}",
+                        id, color
+                    );
                     my_player.id.get_or_insert(id.clone());
                     my_player.color = Some(color);
                     if let Ok(mut text) = status_query.get_single_mut() {
@@ -103,22 +112,12 @@ fn handle_ws_messages(
                         text.sections[0].style.color = bevy::prelude::Color::RED;
                     }
                 }
-                WsMsg::PlayerMove { col } => {
+                WsMsg::PlayerMove { id: _, col } => {
                     piece_drop_events.send(PieceDropEvent { column: col });
                 }
             }
         }
     }
-}
-
-use serde::{Deserialize, Serialize};
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[serde(tag = "type")]
-pub enum WsMsg {
-    PlayerJoin { id: String, color: Player },
-    PlayerLeave { id: String },
-    PlayerMove { col: usize }, // active player will be determined locally
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -127,47 +126,78 @@ pub enum GameSide {
     Other,
 }
 
-use std::sync::{mpsc::Receiver, Arc, Mutex};
-#[derive(Resource, Clone)]
-struct WsRxChannel(Arc<Mutex<Receiver<WsMsg>>>);
+#[derive(Resource)]
+pub struct WsRxChannel(pub Option<tokio::sync::mpsc::Receiver<WsMsg>>);
 
 #[derive(Resource, Clone, Default)]
 pub struct MyPlayerInfo {
     pub id: Option<String>,
-    pub color: Option<crate::game_logic::Player>,
+    pub color: Option<Player>,
 }
 
 #[derive(Resource, Clone)]
-pub struct WsTxChannel(pub Option<std::sync::mpsc::Sender<WsMsg>>);
+pub struct WsTxChannel(pub Option<Arc<SocketIoClient>>);
 
-fn ws_client(ws_tx: std::sync::mpsc::Sender<WsMsg>) {
+async fn create_socketio_client() -> (Arc<SocketIoClient>, tokio::sync::mpsc::Receiver<WsMsg>) {
+    use rust_socketio::ClientBuilder;
+    use tokio::sync::mpsc;
     use uuid::Uuid;
-    use ws::{connect, Message};
-    connect("ws://localhost:3000/ws", |out| {
-        println!("WebSocket connected!");
-        // Generate random UUID for player id
-        let my_id = Uuid::new_v4().to_string();
-        // Dummy; server must fill color field
-        let join_msg = WsMsg::PlayerJoin {
-            id: my_id.clone(),
-            color: crate::game_logic::Player::One,
-        };
-        let json = serde_json::to_string(&join_msg).unwrap();
-        println!("Sending PlayerJoin: {}", json);
-        out.send(Message::text(json)).ok();
+    let (tx, rx) = mpsc::channel(32);
+    let my_id = Uuid::new_v4().to_string();
+    let tx = Arc::new(Mutex::new(tx));
 
-        let ws_tx2 = ws_tx.clone();
-        move |msg: ws::Message| {
-            let text = msg.as_text()?;
-            if let Ok(parsed) = serde_json::from_str::<WsMsg>(text) {
-                ws_tx2.send(parsed).ok();
-            } else {
-                println!("Received unknown WS msg: {text}");
+    let client = ClientBuilder::new("http://localhost:3000")
+        .on("joined", {
+            let tx = tx.clone();
+            move |payload, _| {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    if let Payload::Text(data) = payload {
+                        if let Ok(msg) = serde_json::from_str::<WsMsg>(&data) {
+                            let _ = tx.lock().await.send(msg).await;
+                        }
+                    }
+                });
             }
-            Ok(())
-        }
-    })
-    .unwrap_or_else(|e| eprintln!("WS error: {e}"));
+        })
+        .on("leave", {
+            let tx = tx.clone();
+            move |payload, _| {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    if let Payload::Text(data) = payload {
+                        if let Ok(msg) = serde_json::from_str::<WsMsg>(&data) {
+                            let _ = tx.lock().await.send(msg).await;
+                        }
+                    }
+                });
+            }
+        })
+        .on("move", {
+            let tx = tx.clone();
+            move |payload, _| {
+                let tx = tx.clone();
+                tokio::spawn(async move {
+                    if let Payload::Text(data) = payload {
+                        if let Ok(msg) = serde_json::from_str::<WsMsg>(&data) {
+                            let _ = tx.lock().await.send(msg).await;
+                        }
+                    }
+                });
+            }
+        })
+        .connect()
+        .expect("Failed to connect to socketio server");
+
+    // Send join message after connecting
+    let join_msg = WsMsg::PlayerJoin {
+        id: my_id,
+        color: Player::One,
+    };
+    let json = serde_json::to_string(&join_msg).unwrap();
+    client.emit("join", json).expect("Failed to emit join");
+
+    (Arc::new(client), rx)
 }
 
 fn setup_camera(mut commands: Commands) {

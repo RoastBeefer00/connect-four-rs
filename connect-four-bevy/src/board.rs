@@ -234,8 +234,11 @@ pub fn handle_input(
                 let col = col as usize;
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
                     if let Some(tx) = &ws_tx.0 {
-                        let _ = tx.send(WsMsg::PlayerMove { col });
-                        println!("[WS][DEBUG] PlayerMove message sent for column {}", col);
+                        let msg = crate::WsMsg::PlayerMove { col };
+                        if let Ok(json) = serde_json::to_string(&msg) {
+                            let _ = tx.emit("move", json);
+                            println!("[WS][DEBUG] PlayerMove message sent for column {}", col);
+                        }
                     }
                     // Do NOT locally drop a piece; wait for a WsMsg from the server.
                 }

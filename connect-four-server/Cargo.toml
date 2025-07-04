@@ -1,11 +1,11 @@
 [package]
-name = "connect-four-server"
+name = "connect_four_server"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 axum = { version = "0.7" }
-socketioxide = "0.11"
+socketioxide = {version = "0.11", features = ["state"]}
 tokio = { version = "1.37", features = ["full"] }
 tower = "0.4"
 hyper = { version = "1.3" }
