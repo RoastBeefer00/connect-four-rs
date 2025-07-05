@@ -73,7 +73,6 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
                 if let Err(e) = game.make_move(&Column::from(col)) {
                     let _ = socket.emit("error", serde_json::to_string(&e).ok());
                     tracing::error!("Failed to make move: {:?}", e);
-                    return;
                 }
             }
         },

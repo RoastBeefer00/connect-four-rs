@@ -1,10 +1,9 @@
 use bevy::prelude::*;
 use clap::Parser;
 use connect_four_lib::web_socket::WsMsg;
-use rust_socketio::client::Client as SocketIoClient;
-use rust_socketio::Payload;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use crossbeam_channel::Receiver;
+use rust_socketio::client::Client;
+use socket::SocketIOPlugin;
 
 mod board;
 mod events;
@@ -28,10 +27,10 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let (client, rx) = if !args.offline {
+    let (_client, _rx) = if !args.offline {
         // You will need to refactor create_socketio_client to be synchronous, or spawn a background thread.
         // For now, set to None, or use a placeholder for demonstration.
-        (None, None)
+        (None::<Client>, None::<Receiver<WsMsg>>)
     } else {
         (None, None)
     };
@@ -51,7 +50,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(SocketIoPlugin {
+        .add_plugins(SocketIOPlugin {
             server_url: "http://127.0.0.1:3000".to_string(),
         })
         .init_resource::<GameState>()
@@ -91,5 +90,5 @@ pub struct MyPlayerInfo {
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 }

@@ -7,6 +7,7 @@ use socketioxide::SocketIo;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
+use tracing::info;
 use tracing_subscriber::FmtSubscriber;
 
 mod handlers;
@@ -56,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let app = Router::new().layer(layer);
     let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
-    println!("listening on {}", addr);
+    info!("listening on {}", addr);
     axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app)
         .await
         .unwrap();
