@@ -25,6 +25,7 @@ pub fn setup_ui(
     mut commands: Commands,
     player: Res<MyPlayerInfo>,
     mut sender: EventWriter<SendToServerEvent>,
+    game_state: Res<GameState>,
 ) {
     // Root UI node for layout
     commands
@@ -89,6 +90,7 @@ pub fn setup_ui(
     sender.write(SendToServerEvent(WsMsg::PlayerJoin {
         id: player.id.to_string(),
         color: connect_four_lib::player::Player::One,
+        active_player: game_state.current_player.into(),
     }));
 }
 
@@ -139,7 +141,11 @@ pub fn update_my_turn_indicator(
         _ => false,
     };
     if let Ok(mut text) = q.single_mut() {
-        if is_my_turn {
+        if let GameStatus::Won(winner) = game_state.status {
+            **text = format!("{} wins!", winner);
+        } else if my_player.color == Some(Player::Spectator) {
+            **text = "Spectating...".to_owned();
+        } else if is_my_turn {
             **text = "Your turn!".to_owned();
         } else {
             **text = "Waiting...".to_owned();

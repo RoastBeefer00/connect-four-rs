@@ -4,7 +4,19 @@ use crate::player::Player;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum WsMsg {
-    PlayerJoin { id: String, color: Player },
-    PlayerLeave { id: String },
-    PlayerMove { id: String, col: usize },
+    PlayerJoin {
+        id: String,
+        color: Player,
+        active_player: Player,
+    },
+    PlayerLeave {
+        id: String,
+    },
+    PlayerMove {
+        id: String,
+        col: usize,
+    },
+    GameOver {
+        winner: Player,
+    },
 }

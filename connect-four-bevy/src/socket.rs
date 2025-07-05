@@ -94,9 +94,14 @@ fn setup_socketio_client(
             // Send messages from Bevy to the server
             if let Ok(msg) = outbound_receiver.try_recv() {
                 let message_type = match msg {
-                    WsMsg::PlayerJoin { id: _, color: _ } => "join",
+                    WsMsg::PlayerJoin {
+                        id: _,
+                        color: _,
+                        active_player: _,
+                    } => "join",
                     WsMsg::PlayerLeave { id: _ } => "leave",
                     WsMsg::PlayerMove { id: _, col: _ } => "move",
+                    WsMsg::GameOver { winner: _ } => "gameover",
                 };
                 socket
                     .emit(message_type, serde_json::to_string(&msg).unwrap())
@@ -139,10 +144,17 @@ fn handle_server_messages(
 ) {
     for event in socket_events.read() {
         match &event.0 {
-            WsMsg::PlayerJoin { id, color } => {
+            WsMsg::PlayerJoin {
+                id,
+                color,
+                active_player,
+            } => {
                 info!("Player {} has joined as color {:?}", id, color);
-                my_player.color = Some(Player::from(color));
+                if my_player.id.to_string() == *id {
+                    my_player.color = Some(color.into());
+                }
                 game_state.status = GameStatus::Playing;
+                game_state.current_player = active_player.into();
             }
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
@@ -152,6 +164,11 @@ fn handle_server_messages(
                 piece_event_writer.write(PieceDropEvent {
                     column: col.to_owned(),
                 });
+            }
+            WsMsg::GameOver { winner } => {
+                let player = Player::from(winner);
+                info!("Player {} wins the game!", player);
+                game_state.status = GameStatus::Won(player);
             }
         }
     }

@@ -22,7 +22,12 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
         move |socket: SocketRef, Data::<Value>(data), _bin: Bin| {
             let state = state_for_join.clone();
             info!("Received join event: {:?}", data);
-            if let Ok(WsMsg::PlayerJoin { id, color: _ }) = serde_json::from_value::<WsMsg>(data) {
+            if let Ok(WsMsg::PlayerJoin {
+                id,
+                color: _,
+                active_player: _,
+            }) = serde_json::from_value::<WsMsg>(data)
+            {
                 // Assign color automatically using shared state
                 let player_role = if state.get_player_for_color(Player::One).is_none() {
                     Player::One
@@ -35,10 +40,13 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
                     let mut map = state.player_map.lock().unwrap();
                     map.insert(id.clone(), player_role);
                 }
+                let game = state.game.lock().expect("unable to lock game state");
+                let active_player = game.current_player();
                 state.set_player_for_color(player_role, Some(id.clone()));
                 let join_msg = WsMsg::PlayerJoin {
                     id,
                     color: player_role,
+                    active_player,
                 };
                 let json = serde_json::to_value(&join_msg).unwrap();
                 info!("sending message {:?}", join_msg);
@@ -74,12 +82,24 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
                 info!("making move on col {}", col);
                 let mut game = state.game.lock().unwrap();
                 if let Err(e) = game.make_move(&Column::from(col)) {
-                    let _ = socket.emit("error", serde_json::to_value(&e).ok());
+                    let _ = socket
+                        .within("game")
+                        .emit("error", serde_json::to_value(&e).ok());
                     tracing::error!("Failed to make move: {:?}", e);
                 } else {
                     let msg = WsMsg::PlayerMove { id, col };
                     socket
+                        .within("game")
                         .emit("move", serde_json::to_value(&msg).unwrap())
+                        .ok();
+                }
+                if game.is_over() {
+                    let winner = game.get_winner().unwrap();
+                    info!("{} wins!", winner);
+                    let msg = WsMsg::GameOver { winner };
+                    socket
+                        .within("game")
+                        .emit("gameover", serde_json::to_value(&msg).unwrap())
                         .ok();
                 }
             }

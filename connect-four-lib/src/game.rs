@@ -37,6 +37,14 @@ impl Game {
         self.current_player
     }
 
+    pub fn swap_players(&mut self) {
+        match self.current_player() {
+            Player::One => self.current_player = Player::Two,
+            Player::Two => self.current_player = Player::One,
+            _ => {}
+        }
+    }
+
     pub fn make_move(&mut self, col: &Column) -> Result<(), GameError> {
         if self.board.is_slot_full(col) {
             return Err(GameError::ColumnIsFull);
@@ -48,8 +56,20 @@ impl Game {
                 break;
             }
         }
+        if self.check_for_winner().is_some() {
+            self.end_game();
+        }
+        self.swap_players();
 
         Ok(())
+    }
+
+    pub fn get_winner(&self) -> Option<Player> {
+        if let GameStatus::Won(winner) = self.status {
+            Some(winner)
+        } else {
+            None
+        }
     }
 
     pub fn check_for_winner(&self) -> Option<Player> {

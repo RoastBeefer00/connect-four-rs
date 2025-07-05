@@ -1,10 +1,21 @@
 use bevy::prelude::*;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Component)]
 pub enum Player {
     One,
     Two,
     Spectator,
+}
+
+impl Display for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Player::One => write!(f, "Red"),
+            Player::Two => write!(f, "Yellow"),
+            Player::Spectator => write!(f, "Spectator"),
+        }
+    }
 }
 
 impl Player {
@@ -31,6 +42,16 @@ impl From<&connect_four_lib::player::Player> for Player {
             connect_four_lib::player::Player::One => Player::One,
             connect_four_lib::player::Player::Two => Player::Two,
             connect_four_lib::player::Player::Spectator => Player::Spectator,
+        }
+    }
+}
+
+impl From<Player> for connect_four_lib::player::Player {
+    fn from(value: Player) -> Self {
+        match value {
+            Player::One => connect_four_lib::player::Player::One,
+            Player::Two => connect_four_lib::player::Player::Two,
+            Player::Spectator => connect_four_lib::player::Player::Spectator,
         }
     }
 }
