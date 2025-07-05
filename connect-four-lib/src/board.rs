@@ -6,7 +6,13 @@ use strum_macros::EnumIter;
 type BoardArray = [[Option<Player>; 7]; 6];
 
 #[derive(Clone, Copy, Debug)]
-pub(crate) struct Board(BoardArray);
+pub struct Board(BoardArray);
+
+impl Default for Board {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl Board {
     pub fn new() -> Self {
@@ -32,7 +38,7 @@ impl Board {
 
 // Slots represent the columns that you drop pieces into
 #[derive(Debug, EnumIter, Clone, Copy)]
-pub(crate) enum Column {
+pub enum Column {
     One,
     Two,
     Three,
@@ -70,8 +76,23 @@ impl From<&Column> for usize {
     }
 }
 
+impl From<usize> for Column {
+    fn from(value: usize) -> Self {
+        match value {
+            0 => Column::One,
+            1 => Column::Two,
+            2 => Column::Three,
+            3 => Column::Four,
+            4 => Column::Five,
+            5 => Column::Six,
+            6 => Column::Seven,
+            _ => panic!("Column index out of bounds"),
+        }
+    }
+}
+
 #[derive(Debug, EnumIter, Clone, Copy)]
-pub(crate) enum Row {
+pub enum Row {
     One,
     Two,
     Three,
@@ -132,12 +153,12 @@ mod tests {
         let mut board = Board::new();
         let col = Column::Three;
         // Initially false
-        assert_eq!(board.is_slot_full(&col), false);
+        assert!(!board.is_slot_full(&col));
         // Fill entire column
         for row in Row::iter() {
             board.insert_piece(row, col, Player::Two);
         }
-        assert_eq!(board.is_slot_full(&col), true);
+        assert!(board.is_slot_full(&col));
     }
 
     #[test]

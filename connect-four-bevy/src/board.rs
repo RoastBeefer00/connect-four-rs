@@ -1,13 +1,14 @@
 use crate::events::*;
 use crate::game_logic::*;
+use crate::socket::SocketIOMessageSender;
 use bevy::prelude::*;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
 pub const BOARD_HEIGHT: f32 = CELL_SIZE * 6.0;
 pub const CELL_SIZE: f32 = 62.0;
 pub const PIECE_RADIUS: f32 = 24.0;
-pub const BOARD_COLOR: Color = Color::rgb(0.2, 0.4, 0.8);
-pub const HOLE_COLOR: Color = Color::rgb(0.1, 0.2, 0.4);
+pub const BOARD_COLOR: Color = Color::srgb(0.2, 0.4, 0.8);
+pub const HOLE_COLOR: Color = Color::srgb(0.1, 0.2, 0.4);
 pub const BOARD_OFFSET_Y: f32 = -60.0; // Offset to position board below UI
 
 #[derive(Component)]
@@ -44,15 +45,17 @@ pub struct PreviewPiece {
 
 pub fn setup_board(mut commands: Commands) {
     // Spawn the board background
-    commands.spawn(SpriteBundle {
-        sprite: Sprite {
+    commands.spawn((
+        Sprite {
             color: BOARD_COLOR,
             custom_size: Some(Vec2::new(BOARD_WIDTH, BOARD_HEIGHT)),
             ..default()
         },
-        transform: Transform::from_translation(Vec3::new(0.0, BOARD_OFFSET_Y, 0.0)),
-        ..default()
-    });
+        Transform {
+            translation: Vec3::new(0.0, BOARD_OFFSET_Y, 0.0),
+            ..default()
+        },
+    ));
 
     // Create the grid of holes
     let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
@@ -65,13 +68,13 @@ pub fn setup_board(mut commands: Commands) {
 
             // Create the hole (visual representation of empty cell)
             commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: HOLE_COLOR,
-                        custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(Vec3::new(x, y, 1.0)),
+                Sprite {
+                    color: HOLE_COLOR,
+                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
+                    ..default()
+                },
+                Transform {
+                    translation: Vec3::new(x, y, 1.0),
                     ..default()
                 },
                 BoardCell { row, col },
@@ -84,73 +87,65 @@ pub fn setup_board(mut commands: Commands) {
         let x = start_x + (col as f32 * CELL_SIZE);
 
         commands.spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgba(1.0, 1.0, 1.0, 0.0), // Transparent by default
-                    custom_size: Some(Vec2::new(CELL_SIZE, BOARD_HEIGHT)),
-                    ..default()
-                },
-                transform: Transform::from_translation(Vec3::new(x, BOARD_OFFSET_Y, 0.5)),
-                visibility: Visibility::Hidden,
+            Sprite {
+                color: Color::srgba(1.0, 1.0, 1.0, 0.0), // Transparent by default
+                custom_size: Some(Vec2::new(CELL_SIZE, BOARD_HEIGHT)),
                 ..default()
             },
+            Transform {
+                translation: Vec3::new(x, BOARD_OFFSET_Y, 0.5),
+                ..default()
+            },
+            Visibility::Hidden,
             ColumnHighlight { col },
         ));
 
         // Hovering preview piece for this column
         commands.spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::rgba(0.8, 0.2, 0.2, 0.7), // Preview piece color (red, semi-transparent)
-                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
-                    ..default()
-                },
-                // Place slightly above the top row
-                transform: Transform::from_translation(Vec3::new(
-                    x,
-                    BOARD_OFFSET_Y + BOARD_HEIGHT / 2. + CELL_SIZE / 2.,
-                    3.0,
-                )),
-                visibility: Visibility::Hidden,
+            Sprite {
+                color: Color::srgba(0.8, 0.2, 0.2, 0.7), // Preview piece color (red, semi-transparent)
+                custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
                 ..default()
             },
+            Transform {
+                // Place slightly above the top row
+                translation: Vec3::new(x, BOARD_OFFSET_Y + BOARD_HEIGHT / 2. + CELL_SIZE / 2., 3.0),
+                ..default()
+            },
+            Visibility::Hidden,
             PreviewPiece { col },
         ));
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-use crate::{WsMsg, WsTxChannel};
+// #![allow(clippy::too_many_arguments)]
+use crate::WsMsg;
 
 #[allow(clippy::too_many_arguments)]
 pub fn handle_input(
     _commands: Commands,
-    mouse_input: Res<Input<MouseButton>>,
+    sender: Res<SocketIOMessageSender>,
+    mouse_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
-    mut piece_drop_events: EventWriter<PieceDropEvent>,
+    // _piece_drop_events: EventWriter<PieceDropEvent>,
     mut param_set: ParamSet<(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
     )>,
-    ws_tx: Res<WsTxChannel>,
     my_player: Res<crate::MyPlayerInfo>,
 ) {
     // Only allow move if I'm the active player
     let is_my_turn = match my_player.color {
-        Some(crate::game_logic::Player::One) => {
-            game_state.current_player == crate::game_logic::Player::One
-        }
-        Some(crate::game_logic::Player::Two) => {
-            game_state.current_player == crate::game_logic::Player::Two
-        }
+        Some(Player::One) => game_state.current_player == Player::One,
+        Some(Player::Two) => game_state.current_player == Player::Two,
         _ => false,
     };
 
     let _window = windows.single();
-    if let Ok((camera, camera_transform)) = camera.get_single() {
-        let window = match windows.get_single() {
+    if let Ok((_camera, camera_transform)) = camera.single() {
+        let window = match windows.single() {
             Ok(win) => win,
             Err(_) => {
                 return; // Exit if no single window
@@ -172,7 +167,7 @@ pub fn handle_input(
             for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
                 if (0..7).contains(&col) && highlight.col == col as usize {
                     *visibility = Visibility::Visible;
-                    sprite.color = Color::rgba(1.0, 1.0, 1.0, 0.2);
+                    sprite.color = Color::srgba(1.0, 1.0, 1.0, 0.2);
                 } else {
                     *visibility = Visibility::Hidden;
                 }
@@ -180,8 +175,8 @@ pub fn handle_input(
         }
     }
 
-    if let Ok((camera, camera_transform)) = camera.get_single() {
-        let window = match windows.get_single() {
+    if let Ok((_camera, camera_transform)) = camera.single() {
+        let window = match windows.single() {
             Ok(win) => win,
             Err(_) => return,
         };
@@ -204,7 +199,7 @@ pub fn handle_input(
                         && !game_state.is_column_full(col as usize)
                     {
                         *visibility = Visibility::Visible;
-                        sprite.color = Color::rgba(1.0, 1.0, 1.0, 0.2);
+                        sprite.color = Color::srgba(1.0, 1.0, 1.0, 0.2);
                     } else {
                         *visibility = Visibility::Hidden;
                     }
@@ -220,7 +215,7 @@ pub fn handle_input(
                         && !game_state.is_column_full(col as usize)
                     {
                         *visibility = Visibility::Visible;
-                        sprite.color = game_state.current_player.color().with_a(0.7);
+                        sprite.color = game_state.current_player.color().with_alpha(0.7);
                     } else {
                         *visibility = Visibility::Hidden;
                     }
@@ -233,11 +228,13 @@ pub fn handle_input(
             if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
                 let col = col as usize;
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                    if let Some(tx) = &ws_tx.0 {
-                        let _ = tx.send(WsMsg::PlayerMove { col });
-                        println!("[WS][DEBUG] PlayerMove message sent for column {}", col);
-                    }
-                    // Do NOT locally drop a piece; wait for a WsMsg from the server.
+                    sender
+                        .0
+                        .send(WsMsg::PlayerMove {
+                            id: my_player.clone().id.to_string(),
+                            col,
+                        })
+                        .unwrap();
                 }
             }
         }
@@ -248,8 +245,7 @@ pub fn handle_piece_drop(
     mut commands: Commands,
     mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
-    my_player: Res<crate::MyPlayerInfo>,
-    ws_tx: Res<crate::WsTxChannel>,
+    _my_player: Res<crate::MyPlayerInfo>,
 ) {
     for event in piece_drop_events.read() {
         // Always use the game state's current player for piece color (matches latest move)
@@ -266,13 +262,13 @@ pub fn handle_piece_drop(
 
             // Spawn the animated piece using the state player
             commands.spawn((
-                SpriteBundle {
-                    sprite: Sprite {
-                        color: piece_color.color(),
-                        custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
-                        ..default()
-                    },
-                    transform: Transform::from_translation(Vec3::new(x, start_y_pos, 2.0)),
+                Sprite {
+                    color: piece_color.color(),
+                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
+                    ..default()
+                },
+                Transform {
+                    translation: Vec3::new(x, start_y_pos, 2.0),
                     ..default()
                 },
                 AnimatingPiece {
@@ -286,7 +282,6 @@ pub fn handle_piece_drop(
         }
     }
 }
-
 
 pub fn animate_pieces(
     mut commands: Commands,

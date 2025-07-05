@@ -6,13 +6,21 @@ use crate::{
 
 use strum::IntoEnumIterator;
 
-pub(crate) struct Game {
+pub struct Game {
     board: Board,
     status: GameStatus,
     current_player: Player,
 }
 
 impl Game {
+    pub fn new() -> Self {
+        Game {
+            board: Board::default(),
+            status: GameStatus::Playing,
+            current_player: Player::One,
+        }
+    }
+
     pub fn get_board(&self) -> Board {
         self.board
     }
@@ -30,7 +38,7 @@ impl Game {
     }
 
     pub fn make_move(&mut self, col: &Column) -> Result<(), GameError> {
-        if self.board.is_slot_full(&col) {
+        if self.board.is_slot_full(col) {
             return Err(GameError::ColumnIsFull);
         }
         for row in Row::iter().rev() {
@@ -56,51 +64,59 @@ impl Game {
                 let slot = self.board.get(row, col);
                 if let Some(player) = slot {
                     // Horizontal
-                    if col_idx(col) <= 3 {
-                        if (0..4).all(|i| {
+                    if col_idx(col) <= 3
+                        && (0..4).all(|i| {
                             self.board
                                 .get(row, Column::iter().nth(col_idx(col) + i).unwrap())
                                 == Some(player)
-                        }) {
-                            return Some(player);
-                        }
+                        })
+                    {
+                        return Some(player);
                     }
                     // Vertical
-                    if row_idx(row) <= 2 {
-                        if (0..4).all(|i| {
+                    if row_idx(row) <= 2
+                        && (0..4).all(|i| {
                             self.board
                                 .get(Row::iter().nth(row_idx(row) + i).unwrap(), col)
                                 == Some(player)
-                        }) {
-                            return Some(player);
-                        }
+                        })
+                    {
+                        return Some(player);
                     }
                     // Diagonal down-right
-                    if col_idx(col) <= 3 && row_idx(row) <= 2 {
-                        if (0..4).all(|i| {
+                    if col_idx(col) <= 3
+                        && row_idx(row) <= 2
+                        && (0..4).all(|i| {
                             self.board.get(
                                 Row::iter().nth(row_idx(row) + i).unwrap(),
                                 Column::iter().nth(col_idx(col) + i).unwrap(),
                             ) == Some(player)
-                        }) {
-                            return Some(player);
-                        }
+                        })
+                    {
+                        return Some(player);
                     }
                     // Diagonal down-left
-                    if col_idx(col) >= 3 && row_idx(row) <= 2 {
-                        if (0..4).all(|i| {
+                    if col_idx(col) >= 3
+                        && row_idx(row) <= 2
+                        && (0..4).all(|i| {
                             self.board.get(
                                 Row::iter().nth(row_idx(row) + i).unwrap(),
                                 Column::iter().nth(col_idx(col) - i).unwrap(),
                             ) == Some(player)
-                        }) {
-                            return Some(player);
-                        }
+                        })
+                    {
+                        return Some(player);
                     }
                 }
             }
         }
         None
+    }
+}
+
+impl Default for Game {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -201,15 +217,78 @@ mod tests {
         // Pattern that fills the board avoiding any 4-in-a-row for both players
         // Board fill absolutely guaranteed to avoid any connect four:
         let fill = [
-            [Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One], // Row::Six
-            [Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two], // Row::Five
-            [Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two], // Row::Four (repeat previous for safety)
-            [Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One], // Row::Three
-            [Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One], // Row::Two (repeat previous for safety)
-            [Player::Two, Player::One, Player::Two, Player::One, Player::Two, Player::One, Player::Two], // Row::One
+            [
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+            ], // Row::Six
+            [
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+            ], // Row::Five
+            [
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+            ], // Row::Four (repeat previous for safety)
+            [
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+            ], // Row::Three
+            [
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+            ], // Row::Two (repeat previous for safety)
+            [
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+                Player::One,
+                Player::Two,
+            ], // Row::One
         ];
-        let rows = [Row::Six, Row::Five, Row::Four, Row::Three, Row::Two, Row::One];
-        let cols = [Column::One, Column::Two, Column::Three, Column::Four, Column::Five, Column::Six, Column::Seven];
+        let rows = [
+            Row::Six,
+            Row::Five,
+            Row::Four,
+            Row::Three,
+            Row::Two,
+            Row::One,
+        ];
+        let cols = [
+            Column::One,
+            Column::Two,
+            Column::Three,
+            Column::Four,
+            Column::Five,
+            Column::Six,
+            Column::Seven,
+        ];
         for (i, row) in rows.iter().enumerate() {
             for (j, col) in cols.iter().enumerate() {
                 game.board.insert_piece(*row, *col, fill[i][j]);

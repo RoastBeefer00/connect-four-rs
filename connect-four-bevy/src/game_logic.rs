@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Component)]
 pub enum Player {
     One,
     Two,
@@ -16,8 +16,8 @@ impl Player {
 
     pub fn color(self) -> Color {
         match self {
-            Player::One => Color::rgb(0.8, 0.2, 0.2),
-            Player::Two => Color::rgb(0.9, 0.9, 0.2),
+            Player::One => Color::srgb(0.8, 0.2, 0.2),
+            Player::Two => Color::srgb(0.9, 0.9, 0.2),
         }
     }
 }
