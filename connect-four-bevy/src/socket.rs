@@ -9,6 +9,12 @@ use rust_socketio::{
     Payload,
 };
 
+use crate::{
+    events::PieceDropEvent,
+    game_logic::{GameState, GameStatus, Player},
+    MyPlayerInfo,
+};
+
 // A resource to hold the sender end of our channel for outbound messages.
 #[derive(Resource)]
 pub struct SocketIOMessageSender(pub Sender<WsMsg>);
@@ -125,17 +131,27 @@ fn receive_messages_from_server(
     }
 }
 
-fn handle_server_messages(mut events: EventReader<SocketMessageEvent>) {
-    for event in events.read() {
+fn handle_server_messages(
+    mut socket_events: EventReader<SocketMessageEvent>,
+    mut game_state: ResMut<GameState>,
+    mut my_player: ResMut<MyPlayerInfo>,
+    mut piece_event_writer: EventWriter<PieceDropEvent>,
+) {
+    for event in socket_events.read() {
         match &event.0 {
             WsMsg::PlayerJoin { id, color } => {
                 info!("Player {} has joined as color {:?}", id, color);
+                my_player.color = Some(Player::from(color));
+                game_state.status = GameStatus::Playing;
             }
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
             }
             WsMsg::PlayerMove { id, col } => {
                 info!("Player {} has made a move on column {:?}", id, col);
+                piece_event_writer.write(PieceDropEvent {
+                    column: col.to_owned(),
+                });
             }
         }
     }

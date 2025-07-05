@@ -215,7 +215,11 @@ pub fn handle_input(
                         && !game_state.is_column_full(col as usize)
                     {
                         *visibility = Visibility::Visible;
-                        sprite.color = game_state.current_player.color().with_alpha(0.7);
+                        sprite.color = game_state
+                            .current_player
+                            .color()
+                            .expect("could not get color")
+                            .with_alpha(0.7);
                     } else {
                         *visibility = Visibility::Hidden;
                     }
@@ -227,6 +231,7 @@ pub fn handle_input(
             // Handle mouse clicks
             if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
                 let col = col as usize;
+                info!("mouse click for move on col: {col}");
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
                     sender
                         .0
@@ -263,7 +268,7 @@ pub fn handle_piece_drop(
             // Spawn the animated piece using the state player
             commands.spawn((
                 Sprite {
-                    color: piece_color.color(),
+                    color: piece_color.color().expect("could not get color"),
                     custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
                     ..default()
                 },
@@ -300,7 +305,7 @@ pub fn animate_pieces(
 
         if anim.timer.finished() {
             // Convert to static piece - determine player from sprite color
-            let player = if sprite.color == Player::One.color() {
+            let player = if sprite.color == Player::One.color().expect("could not get color") {
                 Player::One
             } else {
                 Player::Two

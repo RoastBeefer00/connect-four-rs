@@ -4,20 +4,33 @@ use bevy::prelude::*;
 pub enum Player {
     One,
     Two,
+    Spectator,
 }
 
 impl Player {
-    pub fn other(self) -> Self {
+    pub fn other(self) -> Option<Self> {
         match self {
-            Player::One => Player::Two,
-            Player::Two => Player::One,
+            Player::One => Some(Player::Two),
+            Player::Two => Some(Player::One),
+            Player::Spectator => None,
         }
     }
 
-    pub fn color(self) -> Color {
+    pub fn color(self) -> Option<Color> {
         match self {
-            Player::One => Color::srgb(0.8, 0.2, 0.2),
-            Player::Two => Color::srgb(0.9, 0.9, 0.2),
+            Player::One => Some(Color::srgb(0.8, 0.2, 0.2)),
+            Player::Two => Some(Color::srgb(0.9, 0.9, 0.2)),
+            Player::Spectator => None,
+        }
+    }
+}
+
+impl From<&connect_four_lib::player::Player> for Player {
+    fn from(value: &connect_four_lib::player::Player) -> Self {
+        match value {
+            connect_four_lib::player::Player::One => Player::One,
+            connect_four_lib::player::Player::Two => Player::Two,
+            connect_four_lib::player::Player::Spectator => Player::Spectator,
         }
     }
 }
@@ -81,7 +94,7 @@ impl GameState {
                 } else if self.move_count >= 42 {
                     self.status = GameStatus::Draw;
                 } else {
-                    self.current_player = self.current_player.other();
+                    self.current_player = self.current_player.other()?;
                 }
 
                 return Some(row);

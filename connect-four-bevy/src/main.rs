@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use clap::Parser;
 use connect_four_lib::web_socket::WsMsg;
-use crossbeam_channel::Receiver;
-use rust_socketio::client::Client;
 use socket::SocketIOPlugin;
 
 mod board;
@@ -44,7 +42,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(SocketIOPlugin {})
+        .add_plugins(SocketIOPlugin)
         .init_resource::<GameState>()
         .init_resource::<GameScore>()
         .add_event::<PieceDropEvent>()
