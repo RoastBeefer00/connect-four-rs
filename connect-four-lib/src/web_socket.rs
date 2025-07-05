@@ -16,6 +16,7 @@ pub enum WsMsg {
         id: String,
         col: usize,
         row: usize,
+        active_player: Player,
     },
     GameOver {
         winner: Player,

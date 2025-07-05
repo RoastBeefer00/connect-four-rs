@@ -49,21 +49,20 @@ impl Game {
         if self.board.is_slot_full(col) {
             return Err(GameError::ColumnIsFull);
         }
-        let mut row = Row::Six;
-        for r in Row::iter().rev() {
-            if self.get_board().get(r, *col).is_none() {
-                self.get_board()
-                    .insert_piece(r, *col, self.current_player());
-                row = r;
-                break;
+        for row in Row::iter().rev() {
+            if self.board.get(row, *col).is_none() {
+                self.board.insert_piece(row, *col, self.current_player());
+                if self.check_for_winner().is_some() {
+                    self.end_game();
+                }
+                self.swap_players();
+
+                return Ok((*col, row));
             }
         }
-        if self.check_for_winner().is_some() {
-            self.end_game();
-        }
-        self.swap_players();
 
-        Ok((*col, row))
+        // Should never reach this
+        Ok((Column::One, Row::One))
     }
 
     pub fn get_winner(&self) -> Option<Player> {
@@ -337,5 +336,26 @@ mod tests {
             board.insert_piece(row, col, Player::One);
         }
         assert!(board.is_slot_full(&col));
+    }
+
+    #[test]
+    fn test_swap_player() {
+        use crate::board::Column;
+        let mut game = Game::new();
+        assert!(game.current_player == Player::One);
+        let _ = game.make_move(&Column::One);
+        assert!(game.current_player == Player::Two);
+        let _ = game.make_move(&Column::One);
+        assert!(game.current_player == Player::One);
+    }
+
+    #[test]
+    fn test_make_move() {
+        use crate::board::{Column, Row};
+        let mut game = Game::new();
+        let (_, row) = game.make_move(&Column::One).unwrap();
+        assert!(row == Row::Six);
+        let (_, row) = game.make_move(&Column::One).unwrap();
+        assert!(row == Row::Five);
     }
 }

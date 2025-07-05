@@ -238,6 +238,7 @@ pub fn handle_input(
                             id: my_player.clone().id.to_string(),
                             col,
                             row: 6,
+                            active_player: game_state.current_player.into(),
                         })
                         .unwrap();
                 }

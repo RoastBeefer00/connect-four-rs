@@ -78,7 +78,12 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
         move |socket: SocketRef, Data::<Value>(data), _bin: Bin| {
             let _state = state_for_move.clone();
             info!("Received move event: {:?}", data);
-            if let Ok(WsMsg::PlayerMove { id, col, row: _ }) = serde_json::from_value::<WsMsg>(data)
+            if let Ok(WsMsg::PlayerMove {
+                id,
+                col,
+                row: _,
+                active_player: _,
+            }) = serde_json::from_value::<WsMsg>(data)
             {
                 info!("making move on col {}", col);
                 let mut game = state.game.lock().unwrap();
@@ -88,6 +93,7 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
                             id,
                             col: col.into(),
                             row: row.into(),
+                            active_player: game.current_player(),
                         };
                         socket
                             .within("game")

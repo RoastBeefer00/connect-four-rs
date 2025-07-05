@@ -37,7 +37,7 @@ impl Board {
 }
 
 // Slots represent the columns that you drop pieces into
-#[derive(Debug, EnumIter, Clone, Copy)]
+#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum Column {
     One,
     Two,
@@ -91,7 +91,7 @@ impl From<usize> for Column {
     }
 }
 
-#[derive(Debug, EnumIter, Clone, Copy)]
+#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
     One,
     Two,

@@ -100,7 +100,12 @@ fn setup_socketio_client(
                         active_player: _,
                     } => "join",
                     WsMsg::PlayerLeave { id: _ } => "leave",
-                    WsMsg::PlayerMove { id: _, col: _ } => "move",
+                    WsMsg::PlayerMove {
+                        id: _,
+                        col: _,
+                        row: _,
+                        active_player: _,
+                    } => "move",
                     WsMsg::GameOver { winner: _ } => "gameover",
                 };
                 socket
@@ -153,18 +158,27 @@ fn handle_server_messages(
                 if my_player.id.to_string() == *id {
                     my_player.color = Some(color.into());
                 }
-                game_state.status = GameStatus::Playing;
                 game_state.current_player = active_player.into();
+                game_state.status = GameStatus::Playing;
             }
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
             }
-            WsMsg::PlayerMove { id, col, row } => {
-                info!("Player {} has made a move on column {:?}", id, col);
+            WsMsg::PlayerMove {
+                id,
+                col,
+                row,
+                active_player,
+            } => {
+                info!(
+                    "Player {} has made a move on column {:?} and row {:?}",
+                    id, col, row
+                );
                 piece_event_writer.write(PieceDropEvent {
                     column: col.to_owned(),
                     row: row.to_owned(),
                 });
+                game_state.current_player = active_player.into();
             }
             WsMsg::GameOver { winner } => {
                 let player = Player::from(winner);
