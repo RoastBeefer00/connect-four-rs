@@ -159,10 +159,11 @@ fn handle_server_messages(
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
             }
-            WsMsg::PlayerMove { id, col } => {
+            WsMsg::PlayerMove { id, col, row } => {
                 info!("Player {} has made a move on column {:?}", id, col);
                 piece_event_writer.write(PieceDropEvent {
                     column: col.to_owned(),
+                    row: row.to_owned(),
                 });
             }
             WsMsg::GameOver { winner } => {

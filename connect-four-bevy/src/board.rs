@@ -129,7 +129,6 @@ pub fn handle_input(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
-    // _piece_drop_events: EventWriter<PieceDropEvent>,
     mut param_set: ParamSet<(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
@@ -238,6 +237,7 @@ pub fn handle_input(
                         .send(WsMsg::PlayerMove {
                             id: my_player.clone().id.to_string(),
                             col,
+                            row: 6,
                         })
                         .unwrap();
                 }
@@ -248,43 +248,42 @@ pub fn handle_input(
 
 pub fn handle_piece_drop(
     mut commands: Commands,
-    mut game_state: ResMut<GameState>,
+    game_state: Res<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
-    _my_player: Res<crate::MyPlayerInfo>,
 ) {
     for event in piece_drop_events.read() {
         // Always use the game state's current player for piece color (matches latest move)
         let piece_color = game_state.current_player;
 
-        if let Some(target_row) = game_state.drop_piece(event.column) {
-            // Calculate positions for animation
-            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
-            let start_y = (BOARD_HEIGHT / 2.0) - (CELL_SIZE / 2.0) + BOARD_OFFSET_Y;
+        let target_row = event.row;
 
-            let x = start_x + (event.column as f32 * CELL_SIZE);
-            let start_y_pos = start_y + CELL_SIZE; // Start above the board
-            let target_y_pos = start_y - (target_row as f32 * CELL_SIZE);
+        // Calculate positions for animation
+        let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
+        let start_y = (BOARD_HEIGHT / 2.0) - (CELL_SIZE / 2.0) + BOARD_OFFSET_Y;
 
-            // Spawn the animated piece using the state player
-            commands.spawn((
-                Sprite {
-                    color: piece_color.color().expect("could not get color"),
-                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
-                    ..default()
-                },
-                Transform {
-                    translation: Vec3::new(x, start_y_pos, 2.0),
-                    ..default()
-                },
-                AnimatingPiece {
-                    target_row,
-                    col: event.column,
-                    start_y: start_y_pos,
-                    target_y: target_y_pos,
-                    timer: Timer::from_seconds(0.5, TimerMode::Once),
-                },
-            ));
-        }
+        let x = start_x + (event.column as f32 * CELL_SIZE);
+        let start_y_pos = start_y + CELL_SIZE; // Start above the board
+        let target_y_pos = start_y - (target_row as f32 * CELL_SIZE);
+
+        // Spawn the animated piece using the state player
+        commands.spawn((
+            Sprite {
+                color: piece_color.color().expect("could not get color"),
+                custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
+                ..default()
+            },
+            Transform {
+                translation: Vec3::new(x, start_y_pos, 2.0),
+                ..default()
+            },
+            AnimatingPiece {
+                target_row,
+                col: event.column,
+                start_y: start_y_pos,
+                target_y: target_y_pos,
+                timer: Timer::from_seconds(0.5, TimerMode::Once),
+            },
+        ));
     }
 }
 

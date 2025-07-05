@@ -78,20 +78,28 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
         move |socket: SocketRef, Data::<Value>(data), _bin: Bin| {
             let _state = state_for_move.clone();
             info!("Received move event: {:?}", data);
-            if let Ok(WsMsg::PlayerMove { id, col }) = serde_json::from_value::<WsMsg>(data) {
+            if let Ok(WsMsg::PlayerMove { id, col, row: _ }) = serde_json::from_value::<WsMsg>(data)
+            {
                 info!("making move on col {}", col);
                 let mut game = state.game.lock().unwrap();
-                if let Err(e) = game.make_move(&Column::from(col)) {
-                    let _ = socket
-                        .within("game")
-                        .emit("error", serde_json::to_value(&e).ok());
-                    tracing::error!("Failed to make move: {:?}", e);
-                } else {
-                    let msg = WsMsg::PlayerMove { id, col };
-                    socket
-                        .within("game")
-                        .emit("move", serde_json::to_value(&msg).unwrap())
-                        .ok();
+                match game.make_move(&col.into()) {
+                    Ok((col, row)) => {
+                        let msg = WsMsg::PlayerMove {
+                            id,
+                            col: col.into(),
+                            row: row.into(),
+                        };
+                        socket
+                            .within("game")
+                            .emit("move", serde_json::to_value(&msg).unwrap())
+                            .ok();
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to make move: {:?}", e);
+                        let _ = socket
+                            .within("game")
+                            .emit("error", serde_json::to_value(&e).ok());
+                    }
                 }
                 if game.is_over() {
                     let winner = game.get_winner().unwrap();

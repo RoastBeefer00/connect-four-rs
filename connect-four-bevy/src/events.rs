@@ -3,6 +3,7 @@ use bevy::prelude::*;
 #[derive(Event)]
 pub struct PieceDropEvent {
     pub column: usize,
+    pub row: usize,
 }
 
 #[derive(Event)]

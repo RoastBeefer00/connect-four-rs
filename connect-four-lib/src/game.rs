@@ -45,14 +45,16 @@ impl Game {
         }
     }
 
-    pub fn make_move(&mut self, col: &Column) -> Result<(), GameError> {
+    pub fn make_move(&mut self, col: &Column) -> Result<(Column, Row), GameError> {
         if self.board.is_slot_full(col) {
             return Err(GameError::ColumnIsFull);
         }
-        for row in Row::iter().rev() {
-            if self.get_board().get(row, *col).is_none() {
+        let mut row = Row::Six;
+        for r in Row::iter().rev() {
+            if self.get_board().get(r, *col).is_none() {
                 self.get_board()
-                    .insert_piece(row, *col, self.current_player());
+                    .insert_piece(r, *col, self.current_player());
+                row = r;
                 break;
             }
         }
@@ -61,7 +63,7 @@ impl Game {
         }
         self.swap_players();
 
-        Ok(())
+        Ok((*col, row))
     }
 
     pub fn get_winner(&self) -> Option<Player> {
