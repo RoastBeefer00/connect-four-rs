@@ -20,40 +20,48 @@ pub struct SocketIOMessageReceiver(pub Receiver<WsMsg>);
 // A custom Bevy event to represent a message received from the server.
 #[derive(Event)]
 pub struct SocketMessageEvent(pub WsMsg);
+//
+// Event for sending messages to server
+#[derive(Event)]
+pub struct SendToServerEvent(pub WsMsg);
 
-pub struct SocketIOPlugin {
-    pub server_url: String,
-}
+pub struct SocketIOPlugin;
 
 impl Plugin for SocketIOPlugin {
     fn build(&self, app: &mut App) {
-        let (sender, receiver) = unbounded::<WsMsg>();
-
         app.add_plugins(TokioTasksPlugin::default())
-            .insert_resource(SocketIOMessageSender(sender))
-            .insert_resource(SocketIOMessageReceiver(receiver))
             .add_event::<SocketMessageEvent>()
+            .add_event::<SendToServerEvent>()
             .add_systems(Startup, setup_socketio_client)
             .add_systems(
                 Update,
-                (handle_incoming_messages, update_other_players_system),
+                (
+                    receive_messages_from_server,
+                    handle_server_messages,
+                    send_messages_to_server,
+                ),
             );
     }
 }
 
 fn setup_socketio_client(
-    _commands: Commands,
+    mut commands: Commands,
     runtime: ResMut<TokioTasksRuntime>,
-    sender: Res<SocketIOMessageSender>,
-    receiver: Res<SocketIOMessageReceiver>,
+    // sender: Res<SocketIOMessageSender>,
+    // receiver: Res<SocketIOMessageReceiver>,
     // mut event_writer: EventWriter<SocketMessageEvent>,
 ) {
-    let to_bevy_rx = sender.0.clone();
-    let from_bevy_tx = receiver.0.clone();
+    // Create channels for communication
+    let (outbound_sender, outbound_receiver) = unbounded::<WsMsg>();
+    let (inbound_sender, inbound_receiver) = unbounded::<WsMsg>();
+
+    // Add resources to Bevy
+    commands.insert_resource(SocketIOMessageSender(outbound_sender));
+    commands.insert_resource(SocketIOMessageReceiver(inbound_receiver));
 
     runtime.spawn_background_task(move |_ctx| async move {
-        let move_callback = move |payload: Payload, _socket: Client| {
-            let sender_clone = to_bevy_rx.clone();
+        let callback = move |_event: rust_socketio::Event, payload: Payload, _client: Client| {
+            let sender_clone = inbound_sender.clone();
             async move {
                 if let Payload::Text(values) = payload {
                     for value in values {
@@ -68,7 +76,7 @@ fn setup_socketio_client(
         };
 
         let socket = ClientBuilder::new("http://127.0.0.1:3000") // Replace with your server URL
-            .on("move", move_callback) // Define a handler for the "message" event
+            .on_any(callback) // Define a handler for the "message" event
             .connect()
             .await
             .expect("Connection failed");
@@ -78,9 +86,14 @@ fn setup_socketio_client(
         // Main loop for the socket.io client
         loop {
             // Send messages from Bevy to the server
-            if let Ok(msg) = from_bevy_tx.try_recv() {
+            if let Ok(msg) = outbound_receiver.try_recv() {
+                let message_type = match msg {
+                    WsMsg::PlayerJoin { id: _, color: _ } => "join",
+                    WsMsg::PlayerLeave { id: _ } => "leave",
+                    WsMsg::PlayerMove { id: _, col: _ } => "move",
+                };
                 socket
-                    .emit("message", serde_json::json!({ "data": msg }))
+                    .emit(message_type, serde_json::to_string(&msg).unwrap())
                     .await
                     .expect("Server unreachable");
             }
@@ -89,7 +102,21 @@ fn setup_socketio_client(
     });
 }
 
-fn handle_incoming_messages(
+// System to handle outbound messages (Bevy -> Server)
+fn send_messages_to_server(
+    mut events: EventReader<SendToServerEvent>,
+    sender: Res<SocketIOMessageSender>,
+) {
+    for event in events.read() {
+        // Send message through the channel to your SocketIO client
+        if let Err(e) = sender.0.try_send(event.0.clone()) {
+            warn!("Failed to send message to server: {}", e);
+        }
+    }
+}
+
+// System to handle inbound messages (Server -> Bevy)
+fn receive_messages_from_server(
     receiver: Res<SocketIOMessageReceiver>,
     mut event_writer: EventWriter<SocketMessageEvent>,
 ) {
@@ -98,7 +125,7 @@ fn handle_incoming_messages(
     }
 }
 
-fn update_other_players_system(mut events: EventReader<SocketMessageEvent>) {
+fn handle_server_messages(mut events: EventReader<SocketMessageEvent>) {
     for event in events.read() {
         match &event.0 {
             WsMsg::PlayerJoin { id, color } => {

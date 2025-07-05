@@ -231,7 +231,7 @@ pub fn handle_input(
                     sender
                         .0
                         .send(WsMsg::PlayerMove {
-                            id: my_player.clone().id.unwrap(),
+                            id: my_player.clone().id.to_string(),
                             col,
                         })
                         .unwrap();

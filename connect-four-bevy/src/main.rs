@@ -15,6 +15,7 @@ use board::*;
 use events::*;
 use game_logic::*;
 use ui::*;
+use uuid::Uuid;
 
 /// Command line arguments
 #[derive(Parser, Debug)]
@@ -26,17 +27,10 @@ struct Args {
 }
 
 fn main() {
-    let args = Args::parse();
-    let (_client, _rx) = if !args.offline {
-        // You will need to refactor create_socketio_client to be synchronous, or spawn a background thread.
-        // For now, set to None, or use a placeholder for demonstration.
-        (None::<Client>, None::<Receiver<WsMsg>>)
-    } else {
-        (None, None)
-    };
+    // let args = Args::parse();
     // Track our player id
     let my_player = MyPlayerInfo {
-        id: None,
+        id: Uuid::new_v4(),
         color: None,
     };
     App::new()
@@ -50,9 +44,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(SocketIOPlugin {
-            server_url: "http://127.0.0.1:3000".to_string(),
-        })
+        .add_plugins(SocketIOPlugin {})
         .init_resource::<GameState>()
         .init_resource::<GameScore>()
         .add_event::<PieceDropEvent>()
@@ -65,10 +57,7 @@ fn main() {
             (
                 handle_input,
                 handle_piece_drop,
-                handle_game_reset,
-                handle_reset_button,
                 handle_keyboard_input,
-                update_ui,
                 ui::update_my_turn_indicator,
                 animate_pieces,
                 cleanup_pieces,
@@ -85,10 +74,10 @@ pub enum GameSide {
 
 #[derive(Resource, Clone, Default)]
 pub struct MyPlayerInfo {
-    pub id: Option<String>,
+    pub id: Uuid,
     pub color: Option<Player>,
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn(Camera2d::default());
+    commands.spawn(Camera2d);
 }

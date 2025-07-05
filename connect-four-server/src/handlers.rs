@@ -8,7 +8,9 @@ use crate::{AppState, WsMsg};
 
 pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): State<AppState>) {
     info!("Socket.IO connected: {:?} {:?}", socket.ns(), socket.id);
-    socket.emit("auth", data).ok();
+
+    // Join game room
+    socket.join("game").ok();
 
     let state_for_join = state.clone();
     let state_for_leave = state.clone();
@@ -38,9 +40,10 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
                     id,
                     color: player_role,
                 };
-                let json = serde_json::to_string(&join_msg).unwrap();
+                let json = serde_json::to_value(&join_msg).unwrap();
                 info!("sending message {:?}", join_msg);
-                socket.emit("joined", json).ok();
+                // Send to all clients within game room
+                socket.within("game").emit("joined", json).ok();
             }
         },
     );
@@ -67,12 +70,17 @@ pub fn ws_handler(socket: SocketRef, Data(data): Data<Value>, State(state): Stat
         move |socket: SocketRef, Data::<Value>(data), _bin: Bin| {
             let _state = state_for_move.clone();
             info!("Received move event: {:?}", data);
-            if let Ok(WsMsg::PlayerMove { id: _, col }) = serde_json::from_value::<WsMsg>(data) {
+            if let Ok(WsMsg::PlayerMove { id, col }) = serde_json::from_value::<WsMsg>(data) {
                 info!("making move on col {}", col);
                 let mut game = state.game.lock().unwrap();
                 if let Err(e) = game.make_move(&Column::from(col)) {
-                    let _ = socket.emit("error", serde_json::to_string(&e).ok());
+                    let _ = socket.emit("error", serde_json::to_value(&e).ok());
                     tracing::error!("Failed to make move: {:?}", e);
+                } else {
+                    let msg = WsMsg::PlayerMove { id, col };
+                    socket
+                        .emit("move", serde_json::to_value(&msg).unwrap())
+                        .ok();
                 }
             }
         },

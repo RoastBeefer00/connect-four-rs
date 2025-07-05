@@ -1,5 +1,6 @@
-use crate::{events::*, game_logic::*};
+use crate::{events::*, game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
 use bevy::prelude::*;
+use connect_four_lib::web_socket::WsMsg;
 
 #[derive(Component)]
 pub struct MyTurnIndicator;
@@ -20,7 +21,11 @@ pub struct ScoreText;
 #[derive(Component)]
 pub struct ResetButton;
 
-pub fn setup_ui(mut commands: Commands, _asset_server: Res<AssetServer>) {
+pub fn setup_ui(
+    mut commands: Commands,
+    player: Res<MyPlayerInfo>,
+    mut sender: EventWriter<SendToServerEvent>,
+) {
     // Root UI node for layout
     commands
         .spawn((
@@ -81,18 +86,10 @@ pub fn setup_ui(mut commands: Commands, _asset_server: Res<AssetServer>) {
                     ));
                 });
         });
-}
-
-pub fn handle_game_reset(
-    _game_state: ResMut<GameState>,
-    _score: ResMut<GameScore>,
-    _reset_events: EventReader<GameResetEvent>,
-) {
-    // existing implementation
-}
-
-pub fn handle_reset_button(/* params */) {
-    // existing implementation
+    sender.write(SendToServerEvent(WsMsg::PlayerJoin {
+        id: player.id.to_string(),
+        color: connect_four_lib::player::Player::One,
+    }));
 }
 
 pub fn handle_keyboard_input(
@@ -130,12 +127,6 @@ pub fn handle_keyboard_input(
         }
     }
 }
-
-pub fn update_ui(/* params */) {
-    // existing implementation
-}
-
-// ... rest of previous content ...
 
 pub fn update_my_turn_indicator(
     game_state: Res<GameState>,
