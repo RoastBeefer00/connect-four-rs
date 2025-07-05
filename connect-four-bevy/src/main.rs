@@ -55,7 +55,6 @@ fn main() {
             (
                 handle_input,
                 handle_piece_drop,
-                handle_keyboard_input,
                 ui::update_my_turn_indicator,
                 animate_pieces,
                 cleanup_pieces,
