@@ -234,11 +234,9 @@ pub fn handle_input(
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
                     sender
                         .0
-                        .send(WsMsg::PlayerMove {
+                        .send(WsMsg::ClientMove {
                             id: my_player.clone().id.to_string(),
                             col,
-                            row: 6,
-                            active_player: game_state.current_player.into(),
                         })
                         .unwrap();
                 }
@@ -249,7 +247,7 @@ pub fn handle_input(
 
 pub fn handle_piece_drop(
     mut commands: Commands,
-    game_state: Res<GameState>,
+    mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
 ) {
     for event in piece_drop_events.read() {
@@ -285,6 +283,7 @@ pub fn handle_piece_drop(
                 timer: Timer::from_seconds(0.5, TimerMode::Once),
             },
         ));
+        game_state.current_player = event.swap_to_player;
     }
 }
 

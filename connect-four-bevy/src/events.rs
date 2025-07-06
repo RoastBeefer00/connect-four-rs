@@ -1,9 +1,12 @@
 use bevy::prelude::*;
 
+use crate::game_logic::Player;
+
 #[derive(Event)]
 pub struct PieceDropEvent {
     pub column: usize,
     pub row: usize,
+    pub swap_to_player: Player,
 }
 
 #[derive(Event)]

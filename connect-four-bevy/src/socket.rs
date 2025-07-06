@@ -94,19 +94,11 @@ fn setup_socketio_client(
             // Send messages from Bevy to the server
             if let Ok(msg) = outbound_receiver.try_recv() {
                 let message_type = match msg {
-                    WsMsg::PlayerJoin {
-                        id: _,
-                        color: _,
-                        active_player: _,
-                    } => "join",
+                    WsMsg::ClientJoin { id: _ } => "join",
                     WsMsg::PlayerLeave { id: _ } => "leave",
-                    WsMsg::PlayerMove {
-                        id: _,
-                        col: _,
-                        row: _,
-                        active_player: _,
-                    } => "move",
+                    WsMsg::ClientMove { id: _, col: _ } => "move",
                     WsMsg::GameOver { winner: _ } => "gameover",
+                    _ => "client_doesnt_send_these",
                 };
                 socket
                     .emit(message_type, serde_json::to_string(&msg).unwrap())
@@ -149,14 +141,16 @@ fn handle_server_messages(
 ) {
     for event in socket_events.read() {
         match &event.0 {
-            WsMsg::PlayerJoin {
+            WsMsg::ServerJoin {
                 id,
-                color,
+                client_player,
                 active_player,
+                game_board,
             } => {
-                info!("Player {} has joined as color {:?}", id, color);
+                info!("Player {} has joined as color {:?}", id, client_player);
+                game_state.get_state_from_lib(game_board);
                 if my_player.id.to_string() == *id {
-                    my_player.color = Some(color.into());
+                    my_player.color = Some(client_player.into());
                 }
                 game_state.current_player = active_player.into();
                 game_state.status = GameStatus::Playing;
@@ -164,7 +158,7 @@ fn handle_server_messages(
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
             }
-            WsMsg::PlayerMove {
+            WsMsg::ServerMove {
                 id,
                 col,
                 row,
@@ -177,14 +171,15 @@ fn handle_server_messages(
                 piece_event_writer.write(PieceDropEvent {
                     column: col.to_owned(),
                     row: row.to_owned(),
+                    swap_to_player: active_player.into(),
                 });
-                game_state.current_player = active_player.into();
             }
             WsMsg::GameOver { winner } => {
                 let player = Player::from(winner);
                 info!("Player {} wins the game!", player);
                 game_state.status = GameStatus::Won(player);
             }
+            _ => {}
         }
     }
 }

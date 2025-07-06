@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use connect_four_lib::board::BoardArray;
 use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Component)]
@@ -56,6 +57,16 @@ impl From<Player> for connect_four_lib::player::Player {
     }
 }
 
+impl From<&Player> for connect_four_lib::player::Player {
+    fn from(value: &Player) -> Self {
+        match value {
+            Player::One => connect_four_lib::player::Player::One,
+            Player::Two => connect_four_lib::player::Player::Two,
+            Player::Spectator => connect_four_lib::player::Player::Spectator,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GameStatus {
     Playing,
@@ -63,9 +74,11 @@ pub enum GameStatus {
     Draw,
 }
 
+type Board = [[Option<Player>; 7]; 6];
+
 #[derive(Resource, Debug)]
 pub struct GameState {
-    pub board: [[Option<Player>; 7]; 6],
+    pub board: Board,
     pub current_player: Player,
     pub status: GameStatus,
     pub move_count: u32,
@@ -104,6 +117,22 @@ impl GameState {
         } else {
             None
         }
+    }
+
+    pub fn get_state_from_lib(
+        &mut self,
+        board: &[[std::option::Option<connect_four_lib::player::Player>; 7]; 6],
+    ) {
+        let mut new_board: [[Option<Player>; 7]; 6] = [[None; 7]; 6];
+        for (i, row) in board.iter().enumerate() {
+            for (j, col) in row.iter().enumerate() {
+                if let Some(player) = col {
+                    new_board[i][j] = Some(player.into());
+                }
+            }
+        }
+
+        self.board = new_board;
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{events::*, game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
+use crate::{game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
 use bevy::prelude::*;
 use connect_four_lib::web_socket::WsMsg;
 
@@ -25,7 +25,6 @@ pub fn setup_ui(
     mut commands: Commands,
     player: Res<MyPlayerInfo>,
     mut sender: EventWriter<SendToServerEvent>,
-    game_state: Res<GameState>,
 ) {
     // Root UI node for layout
     commands
@@ -87,10 +86,8 @@ pub fn setup_ui(
                     ));
                 });
         });
-    sender.write(SendToServerEvent(WsMsg::PlayerJoin {
+    sender.write(SendToServerEvent(WsMsg::ClientJoin {
         id: player.id.to_string(),
-        color: connect_four_lib::player::Player::One,
-        active_player: game_state.current_player.into(),
     }));
 }
 
