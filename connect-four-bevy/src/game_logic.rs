@@ -1,23 +1,68 @@
 use bevy::prelude::*;
+use connect_four_lib::board::BoardArray;
+use std::fmt::Display;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Component)]
 pub enum Player {
     One,
     Two,
+    Spectator,
+}
+
+impl Display for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Player::One => write!(f, "Red"),
+            Player::Two => write!(f, "Yellow"),
+            Player::Spectator => write!(f, "Spectator"),
+        }
+    }
 }
 
 impl Player {
-    pub fn other(self) -> Self {
+    pub fn other(self) -> Option<Self> {
         match self {
-            Player::One => Player::Two,
-            Player::Two => Player::One,
+            Player::One => Some(Player::Two),
+            Player::Two => Some(Player::One),
+            Player::Spectator => None,
         }
     }
 
-    pub fn color(self) -> Color {
+    pub fn color(self) -> Option<Color> {
         match self {
-            Player::One => Color::srgb(0.8, 0.2, 0.2),
-            Player::Two => Color::srgb(0.9, 0.9, 0.2),
+            Player::One => Some(Color::srgb(0.8, 0.2, 0.2)),
+            Player::Two => Some(Color::srgb(0.9, 0.9, 0.2)),
+            Player::Spectator => None,
+        }
+    }
+}
+
+impl From<&connect_four_lib::player::Player> for Player {
+    fn from(value: &connect_four_lib::player::Player) -> Self {
+        match value {
+            connect_four_lib::player::Player::One => Player::One,
+            connect_four_lib::player::Player::Two => Player::Two,
+            connect_four_lib::player::Player::Spectator => Player::Spectator,
+        }
+    }
+}
+
+impl From<Player> for connect_four_lib::player::Player {
+    fn from(value: Player) -> Self {
+        match value {
+            Player::One => connect_four_lib::player::Player::One,
+            Player::Two => connect_four_lib::player::Player::Two,
+            Player::Spectator => connect_four_lib::player::Player::Spectator,
+        }
+    }
+}
+
+impl From<&Player> for connect_four_lib::player::Player {
+    fn from(value: &Player) -> Self {
+        match value {
+            Player::One => connect_four_lib::player::Player::One,
+            Player::Two => connect_four_lib::player::Player::Two,
+            Player::Spectator => connect_four_lib::player::Player::Spectator,
         }
     }
 }
@@ -29,9 +74,11 @@ pub enum GameStatus {
     Draw,
 }
 
+type Board = [[Option<Player>; 7]; 6];
+
 #[derive(Resource, Debug)]
 pub struct GameState {
-    pub board: [[Option<Player>; 7]; 6],
+    pub board: Board,
     pub current_player: Player,
     pub status: GameStatus,
     pub move_count: u32,
@@ -64,112 +111,28 @@ impl GameState {
         self.board[0][col].is_some()
     }
 
-    pub fn drop_piece(&mut self, col: usize) -> Option<usize> {
-        if col >= 7 || self.is_column_full(col) || self.status != GameStatus::Playing {
-            return None;
-        }
-
-        // Find the lowest empty row in this column
-        for row in (0..6).rev() {
-            if self.board[row][col].is_none() {
-                self.board[row][col] = Some(self.current_player);
-                self.move_count += 1;
-
-                // Check for win
-                if self.check_win(row, col) {
-                    self.status = GameStatus::Won(self.current_player);
-                } else if self.move_count >= 42 {
-                    self.status = GameStatus::Draw;
-                } else {
-                    self.current_player = self.current_player.other();
-                }
-
-                return Some(row);
-            }
-        }
-
-        None
-    }
-
-    fn check_win(&self, row: usize, col: usize) -> bool {
-        let player = self.board[row][col].unwrap();
-
-        // Check horizontal
-        if self.check_direction(row, col, 0, 1, player) >= 4 {
-            return true;
-        }
-
-        // Check vertical
-        if self.check_direction(row, col, 1, 0, player) >= 4 {
-            return true;
-        }
-
-        // Check diagonal (top-left to bottom-right)
-        if self.check_direction(row, col, 1, 1, player) >= 4 {
-            return true;
-        }
-
-        // Check diagonal (top-right to bottom-left)
-        if self.check_direction(row, col, 1, -1, player) >= 4 {
-            return true;
-        }
-
-        false
-    }
-
-    fn check_direction(
-        &self,
-        row: usize,
-        col: usize,
-        d_row: i32,
-        d_col: i32,
-        player: Player,
-    ) -> u32 {
-        let mut count = 1; // Count the piece we just placed
-
-        // Check in positive direction
-        let mut r = row as i32 + d_row;
-        let mut c = col as i32 + d_col;
-        while (0..6).contains(&r) && (0..7).contains(&c) {
-            if let Some(p) = self.board[r as usize][c as usize] {
-                if p == player {
-                    count += 1;
-                    r += d_row;
-                    c += d_col;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        // Check in negative direction
-        let mut r = row as i32 - d_row;
-        let mut c = col as i32 - d_col;
-        while (0..6).contains(&r) && (0..7).contains(&c) {
-            if let Some(p) = self.board[r as usize][c as usize] {
-                if p == player {
-                    count += 1;
-                    r -= d_row;
-                    c -= d_col;
-                } else {
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-        count
-    }
-
     pub fn get_piece(&self, row: usize, col: usize) -> Option<Player> {
         if row < 6 && col < 7 {
             self.board[row][col]
         } else {
             None
         }
+    }
+
+    pub fn get_state_from_lib(
+        &mut self,
+        board: &[[std::option::Option<connect_four_lib::player::Player>; 7]; 6],
+    ) {
+        let mut new_board: [[Option<Player>; 7]; 6] = [[None; 7]; 6];
+        for (i, row) in board.iter().enumerate() {
+            for (j, col) in row.iter().enumerate() {
+                if let Some(player) = col {
+                    new_board[i][j] = Some(player.into());
+                }
+            }
+        }
+
+        self.board = new_board;
     }
 }
 
@@ -183,55 +146,5 @@ mod tests {
         assert_eq!(game.current_player, Player::One);
         assert_eq!(game.status, GameStatus::Playing);
         assert_eq!(game.move_count, 0);
-    }
-
-    #[test]
-    fn test_drop_piece() {
-        let mut game = GameState::new();
-        let row = game.drop_piece(0);
-        assert_eq!(row, Some(5)); // Should drop to bottom row
-        assert_eq!(game.get_piece(5, 0), Some(Player::One));
-        assert_eq!(game.current_player, Player::Two);
-    }
-
-    #[test]
-    fn test_column_full() {
-        let mut game = GameState::new();
-        // Fill column 0
-        for _ in 0..6 {
-            game.drop_piece(0);
-        }
-        assert!(game.is_column_full(0));
-        assert_eq!(game.drop_piece(0), None);
-    }
-
-    #[test]
-    fn test_horizontal_win() {
-        let mut game = GameState::new();
-        // Red wins horizontally in bottom row
-        game.drop_piece(0); // Red
-        game.drop_piece(0); // Yellow
-        game.drop_piece(1); // Red
-        game.drop_piece(1); // Yellow
-        game.drop_piece(2); // Red
-        game.drop_piece(2); // Yellow
-        game.drop_piece(3); // Red - should win
-
-        assert_eq!(game.status, GameStatus::Won(Player::One));
-    }
-
-    #[test]
-    fn test_vertical_win() {
-        let mut game = GameState::new();
-        // Red wins vertically in column 0
-        game.drop_piece(0); // Red
-        game.drop_piece(1); // Yellow
-        game.drop_piece(0); // Red
-        game.drop_piece(1); // Yellow
-        game.drop_piece(0); // Red
-        game.drop_piece(1); // Yellow
-        game.drop_piece(0); // Red - should win
-
-        assert_eq!(game.status, GameStatus::Won(Player::One));
     }
 }

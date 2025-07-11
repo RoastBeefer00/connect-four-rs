@@ -129,7 +129,6 @@ pub fn handle_input(
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
-    // _piece_drop_events: EventWriter<PieceDropEvent>,
     mut param_set: ParamSet<(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
@@ -215,7 +214,11 @@ pub fn handle_input(
                         && !game_state.is_column_full(col as usize)
                     {
                         *visibility = Visibility::Visible;
-                        sprite.color = game_state.current_player.color().with_alpha(0.7);
+                        sprite.color = game_state
+                            .current_player
+                            .color()
+                            .expect("could not get color")
+                            .with_alpha(0.7);
                     } else {
                         *visibility = Visibility::Hidden;
                     }
@@ -227,10 +230,11 @@ pub fn handle_input(
             // Handle mouse clicks
             if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
                 let col = col as usize;
+                info!("mouse click for move on col: {col}");
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
                     sender
                         .0
-                        .send(WsMsg::PlayerMove {
+                        .send(WsMsg::ClientMove {
                             id: my_player.clone().id.to_string(),
                             col,
                         })
@@ -243,43 +247,50 @@ pub fn handle_input(
 
 pub fn handle_piece_drop(
     mut commands: Commands,
-    mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
-    _my_player: Res<crate::MyPlayerInfo>,
 ) {
     for event in piece_drop_events.read() {
         // Always use the game state's current player for piece color (matches latest move)
-        let piece_color = game_state.current_player;
+        let piece_color = event.player;
 
-        if let Some(target_row) = game_state.drop_piece(event.column) {
-            // Calculate positions for animation
-            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
-            let start_y = (BOARD_HEIGHT / 2.0) - (CELL_SIZE / 2.0) + BOARD_OFFSET_Y;
+        let target_row = event.row;
 
-            let x = start_x + (event.column as f32 * CELL_SIZE);
-            let start_y_pos = start_y + CELL_SIZE; // Start above the board
-            let target_y_pos = start_y - (target_row as f32 * CELL_SIZE);
+        // Calculate positions for animation
+        let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
+        let start_y = (BOARD_HEIGHT / 2.0) - (CELL_SIZE / 2.0) + BOARD_OFFSET_Y;
 
-            // Spawn the animated piece using the state player
-            commands.spawn((
-                Sprite {
-                    color: piece_color.color(),
-                    custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
-                    ..default()
-                },
-                Transform {
-                    translation: Vec3::new(x, start_y_pos, 2.0),
-                    ..default()
-                },
-                AnimatingPiece {
-                    target_row,
-                    col: event.column,
-                    start_y: start_y_pos,
-                    target_y: target_y_pos,
-                    timer: Timer::from_seconds(0.5, TimerMode::Once),
-                },
-            ));
-        }
+        let x = start_x + (event.column as f32 * CELL_SIZE);
+        let start_y_pos = start_y + CELL_SIZE; // Start above the board
+        let target_y_pos = start_y - (target_row as f32 * CELL_SIZE);
+
+        // Spawn the animated piece using the state player
+        commands.spawn((
+            Sprite {
+                color: piece_color.color().expect("could not get color"),
+                custom_size: Some(Vec2::new(PIECE_RADIUS * 2.0, PIECE_RADIUS * 2.0)),
+                ..default()
+            },
+            Transform {
+                translation: Vec3::new(x, start_y_pos, 2.0),
+                ..default()
+            },
+            AnimatingPiece {
+                target_row,
+                col: event.column,
+                start_y: start_y_pos,
+                target_y: target_y_pos,
+                timer: Timer::from_seconds(0.5, TimerMode::Once),
+            },
+        ));
+    }
+}
+
+pub fn handle_change_player(
+    mut game_state: ResMut<GameState>,
+    mut change_player_events: EventReader<ChangePlayerEvent>,
+) {
+    for event in change_player_events.read() {
+        game_state.current_player = event.player;
     }
 }
 
@@ -300,7 +311,7 @@ pub fn animate_pieces(
 
         if anim.timer.finished() {
             // Convert to static piece - determine player from sprite color
-            let player = if sprite.color == Player::One.color() {
+            let player = if sprite.color == Player::One.color().expect("could not get color") {
                 Player::One
             } else {
                 Player::Two

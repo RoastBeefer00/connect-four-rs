@@ -1,8 +1,6 @@
 use bevy::prelude::*;
 use clap::Parser;
 use connect_four_lib::web_socket::WsMsg;
-use crossbeam_channel::Receiver;
-use rust_socketio::client::Client;
 use socket::SocketIOPlugin;
 
 mod board;
@@ -44,10 +42,11 @@ fn main() {
             }),
             ..default()
         }))
-        .add_plugins(SocketIOPlugin {})
+        .add_plugins(SocketIOPlugin)
         .init_resource::<GameState>()
         .init_resource::<GameScore>()
         .add_event::<PieceDropEvent>()
+        .add_event::<ChangePlayerEvent>()
         .add_event::<GameResetEvent>()
         .add_event::<PieceAnimationComplete>()
         .add_event::<GameOverEvent>()
@@ -57,7 +56,7 @@ fn main() {
             (
                 handle_input,
                 handle_piece_drop,
-                handle_keyboard_input,
+                handle_change_player.after(handle_piece_drop),
                 ui::update_my_turn_indicator,
                 animate_pieces,
                 cleanup_pieces,

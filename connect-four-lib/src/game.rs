@@ -37,19 +37,40 @@ impl Game {
         self.current_player
     }
 
-    pub fn make_move(&mut self, col: &Column) -> Result<(), GameError> {
+    pub fn swap_players(&mut self) {
+        match self.current_player() {
+            Player::One => self.current_player = Player::Two,
+            Player::Two => self.current_player = Player::One,
+            _ => {}
+        }
+    }
+
+    pub fn make_move(&mut self, col: &Column) -> Result<(Column, Row), GameError> {
         if self.board.is_slot_full(col) {
             return Err(GameError::ColumnIsFull);
         }
         for row in Row::iter().rev() {
-            if self.get_board().get(row, *col).is_none() {
-                self.get_board()
-                    .insert_piece(row, *col, self.current_player());
-                break;
+            if self.board.get(row, *col).is_none() {
+                self.board.insert_piece(row, *col, self.current_player());
+                if self.check_for_winner().is_some() {
+                    self.end_game();
+                }
+                self.swap_players();
+
+                return Ok((*col, row));
             }
         }
 
-        Ok(())
+        // Should never reach this
+        Ok((Column::One, Row::One))
+    }
+
+    pub fn get_winner(&self) -> Option<Player> {
+        if let GameStatus::Won(winner) = self.status {
+            Some(winner)
+        } else {
+            None
+        }
     }
 
     pub fn check_for_winner(&self) -> Option<Player> {
@@ -315,5 +336,26 @@ mod tests {
             board.insert_piece(row, col, Player::One);
         }
         assert!(board.is_slot_full(&col));
+    }
+
+    #[test]
+    fn test_swap_player() {
+        use crate::board::Column;
+        let mut game = Game::new();
+        assert!(game.current_player == Player::One);
+        let _ = game.make_move(&Column::One);
+        assert!(game.current_player == Player::Two);
+        let _ = game.make_move(&Column::One);
+        assert!(game.current_player == Player::One);
+    }
+
+    #[test]
+    fn test_make_move() {
+        use crate::board::{Column, Row};
+        let mut game = Game::new();
+        let (_, row) = game.make_move(&Column::One).unwrap();
+        assert!(row == Row::Six);
+        let (_, row) = game.make_move(&Column::One).unwrap();
+        assert!(row == Row::Five);
     }
 }

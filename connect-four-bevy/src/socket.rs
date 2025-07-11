@@ -9,6 +9,12 @@ use rust_socketio::{
     Payload,
 };
 
+use crate::{
+    events::{ChangePlayerEvent, PieceDropEvent},
+    game_logic::{GameState, GameStatus, Player},
+    MyPlayerInfo,
+};
+
 // A resource to hold the sender end of our channel for outbound messages.
 #[derive(Resource)]
 pub struct SocketIOMessageSender(pub Sender<WsMsg>);
@@ -88,9 +94,11 @@ fn setup_socketio_client(
             // Send messages from Bevy to the server
             if let Ok(msg) = outbound_receiver.try_recv() {
                 let message_type = match msg {
-                    WsMsg::PlayerJoin { id: _, color: _ } => "join",
+                    WsMsg::ClientJoin { id: _ } => "join",
                     WsMsg::PlayerLeave { id: _ } => "leave",
-                    WsMsg::PlayerMove { id: _, col: _ } => "move",
+                    WsMsg::ClientMove { id: _, col: _ } => "move",
+                    WsMsg::GameOver { winner: _ } => "gameover",
+                    _ => "client_doesnt_send_these",
                 };
                 socket
                     .emit(message_type, serde_json::to_string(&msg).unwrap())
@@ -125,18 +133,69 @@ fn receive_messages_from_server(
     }
 }
 
-fn handle_server_messages(mut events: EventReader<SocketMessageEvent>) {
-    for event in events.read() {
+fn handle_server_messages(
+    mut socket_events: EventReader<SocketMessageEvent>,
+    mut game_state: ResMut<GameState>,
+    mut my_player: ResMut<MyPlayerInfo>,
+    mut piece_event_writer: EventWriter<PieceDropEvent>,
+    mut change_player_event_writer: EventWriter<ChangePlayerEvent>,
+) {
+    for event in socket_events.read() {
         match &event.0 {
-            WsMsg::PlayerJoin { id, color } => {
-                info!("Player {} has joined as color {:?}", id, color);
+            WsMsg::ServerJoin {
+                id,
+                client_player,
+                active_player,
+                game_board,
+            } => {
+                info!("Player {} has joined as color {:?}", id, client_player);
+                game_state.get_state_from_lib(game_board);
+                if my_player.id.to_string() == *id {
+                    my_player.color = Some(client_player.into());
+                }
+                for (i, row) in game_state.board.iter().enumerate() {
+                    for (j, col) in row.iter().enumerate() {
+                        if let Some(piece) = col {
+                            piece_event_writer.write(PieceDropEvent {
+                                column: j,
+                                row: i,
+                                player: *piece,
+                            });
+                        }
+                    }
+                }
+                game_state.current_player = active_player.into();
+                game_state.status = GameStatus::Playing;
             }
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
             }
-            WsMsg::PlayerMove { id, col } => {
-                info!("Player {} has made a move on column {:?}", id, col);
+            WsMsg::ServerMove {
+                id,
+                col,
+                row,
+                active_player,
+            } => {
+                info!(
+                    "Player {} has made a move on column {:?} and row {:?}",
+                    id, col, row
+                );
+                let player: Player = Player::from(active_player);
+                piece_event_writer.write(PieceDropEvent {
+                    column: col.to_owned(),
+                    row: row.to_owned(),
+                    player,
+                });
+                change_player_event_writer.write(ChangePlayerEvent {
+                    player: player.other().expect("unable to get other player"),
+                });
             }
+            WsMsg::GameOver { winner } => {
+                let player = Player::from(winner);
+                info!("Player {} wins the game!", player);
+                game_state.status = GameStatus::Won(player);
+            }
+            _ => {}
         }
     }
 }

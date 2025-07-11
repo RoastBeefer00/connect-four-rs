@@ -3,7 +3,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 // Use array instead of vector since the board is a fixed size
 // Each slot in the grid will either have nothing or the `Player` type
-type BoardArray = [[Option<Player>; 7]; 6];
+pub type BoardArray = [[Option<Player>; 7]; 6];
 
 #[derive(Clone, Copy, Debug)]
 pub struct Board(BoardArray);
@@ -34,10 +34,14 @@ impl Board {
 
         pieces == 6
     }
+
+    pub fn get_board_array(&self) -> BoardArray {
+        self.0
+    }
 }
 
 // Slots represent the columns that you drop pieces into
-#[derive(Debug, EnumIter, Clone, Copy)]
+#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum Column {
     One,
     Two,
@@ -91,7 +95,7 @@ impl From<usize> for Column {
     }
 }
 
-#[derive(Debug, EnumIter, Clone, Copy)]
+#[derive(Debug, EnumIter, Clone, Copy, PartialEq, Eq)]
 pub enum Row {
     One,
     Two,

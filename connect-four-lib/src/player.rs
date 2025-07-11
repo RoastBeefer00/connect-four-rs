@@ -7,3 +7,13 @@ pub enum Player {
     Two,
     Spectator,
 }
+
+impl std::fmt::Display for Player {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Player::One => write!(f, "Player one"),
+            Player::Two => write!(f, "Player two"),
+            Player::Spectator => write!(f, "Spectator"),
+        }
+    }
+}
