@@ -86,9 +86,6 @@ pub fn setup_ui(
                     ));
                 });
         });
-    sender.write(SendToServerEvent(WsMsg::ClientJoin {
-        id: player.id.to_string(),
-    }));
 }
 
 pub fn update_my_turn_indicator(

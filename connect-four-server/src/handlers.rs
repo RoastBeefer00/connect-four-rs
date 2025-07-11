@@ -5,7 +5,7 @@ use connect_four_lib::player::Player;
 use futures_util::SinkExt;
 use futures_util::stream::StreamExt;
 use tokio::sync::mpsc::{self};
-use tracing::info;
+use tracing::{error, info};
 
 use crate::{AppState, Connection, WsMsg};
 
@@ -14,6 +14,7 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
 }
 
 async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) {
+    info!("socket connected: {:?}", socket);
     let connections = state.connections.clone();
     let connection_id = uuid::Uuid::new_v4().to_string();
     let (conn_tx, mut conn_rx) = mpsc::unbounded_channel();
@@ -122,10 +123,13 @@ async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) 
                             }
                             _ => {}
                         }
+                    } else {
+                        error!("something went wrong getting message");
                     }
                 }
             }
         }
+        info!("connection closed?");
     });
 
     // Handle outgoing messages

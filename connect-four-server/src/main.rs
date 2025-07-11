@@ -6,7 +6,7 @@ use connect_four_lib::web_socket::WsMsg;
 use handlers::ws_handler;
 use std::collections::HashMap;
 use std::net::SocketAddr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
 use tracing::info;
 use tracing_subscriber::FmtSubscriber;

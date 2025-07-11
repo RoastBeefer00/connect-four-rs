@@ -5,7 +5,6 @@ edition = "2024"
 
 [dependencies]
 axum = { version = "0.8.4", features = ["ws"] }
-socketioxide = {version = "0.11", features = ["state"]}
 tokio = { version = "1.37", features = ["full"] }
 tower = "0.4"
 hyper = { version = "1.3" }
