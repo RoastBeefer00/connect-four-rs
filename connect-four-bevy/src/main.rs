@@ -46,6 +46,7 @@ fn main() {
         .init_resource::<GameState>()
         .init_resource::<GameScore>()
         .add_event::<PieceDropEvent>()
+        .add_event::<ChangePlayerEvent>()
         .add_event::<GameResetEvent>()
         .add_event::<PieceAnimationComplete>()
         .add_event::<GameOverEvent>()
@@ -55,6 +56,7 @@ fn main() {
             (
                 handle_input,
                 handle_piece_drop,
+                handle_change_player.after(handle_piece_drop),
                 ui::update_my_turn_indicator,
                 animate_pieces,
                 cleanup_pieces,

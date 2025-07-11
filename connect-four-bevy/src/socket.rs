@@ -10,7 +10,7 @@ use rust_socketio::{
 };
 
 use crate::{
-    events::PieceDropEvent,
+    events::{ChangePlayerEvent, PieceDropEvent},
     game_logic::{GameState, GameStatus, Player},
     MyPlayerInfo,
 };
@@ -138,6 +138,7 @@ fn handle_server_messages(
     mut game_state: ResMut<GameState>,
     mut my_player: ResMut<MyPlayerInfo>,
     mut piece_event_writer: EventWriter<PieceDropEvent>,
+    mut change_player_event_writer: EventWriter<ChangePlayerEvent>,
 ) {
     for event in socket_events.read() {
         match &event.0 {
@@ -151,6 +152,17 @@ fn handle_server_messages(
                 game_state.get_state_from_lib(game_board);
                 if my_player.id.to_string() == *id {
                     my_player.color = Some(client_player.into());
+                }
+                for (i, row) in game_state.board.iter().enumerate() {
+                    for (j, col) in row.iter().enumerate() {
+                        if let Some(piece) = col {
+                            piece_event_writer.write(PieceDropEvent {
+                                column: j,
+                                row: i,
+                                player: *piece,
+                            });
+                        }
+                    }
                 }
                 game_state.current_player = active_player.into();
                 game_state.status = GameStatus::Playing;
@@ -168,10 +180,14 @@ fn handle_server_messages(
                     "Player {} has made a move on column {:?} and row {:?}",
                     id, col, row
                 );
+                let player: Player = Player::from(active_player);
                 piece_event_writer.write(PieceDropEvent {
                     column: col.to_owned(),
                     row: row.to_owned(),
-                    swap_to_player: active_player.into(),
+                    player,
+                });
+                change_player_event_writer.write(ChangePlayerEvent {
+                    player: player.other().expect("unable to get other player"),
                 });
             }
             WsMsg::GameOver { winner } => {

@@ -46,7 +46,7 @@ pub fn ws_handler(socket: SocketRef, Data(_data): Data<Value>, State(state): Sta
                 let json = serde_json::to_value(&join_msg).unwrap();
                 info!("sending message {:?}", join_msg);
                 // Send to all clients within game room
-                socket.within("game").emit("joined", json).ok();
+                socket.emit("joined", json).ok();
             }
         },
     );
@@ -76,13 +76,14 @@ pub fn ws_handler(socket: SocketRef, Data(_data): Data<Value>, State(state): Sta
             if let Ok(WsMsg::ClientMove { id, col }) = serde_json::from_value::<WsMsg>(data) {
                 info!("making move on col {}", col);
                 let mut game = state.game.lock().unwrap();
+                let player_that_made_move = game.current_player();
                 match game.make_move(&col.into()) {
                     Ok((col, row)) => {
                         let msg = WsMsg::ServerMove {
                             id,
                             col: col.into(),
                             row: row.into(),
-                            active_player: game.current_player(),
+                            active_player: player_that_made_move,
                         };
                         socket
                             .within("game")

@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.16", features = ["dynamic_linking"] }
+bevy = { version = "0.16", features = ["dynamic_linking", "wayland"] }
 rand = "0.8"
 rust_socketio = { version = "0.6", features = ["async"] }
 serde = { version = "1", features = ["derive"] }
@@ -15,14 +15,11 @@ uuid = { version = "1.17.0", features = ["v4"] }
 connect_four_lib = { path = "../connect-four-lib" }
 bevy-tokio-tasks = "0.16"
 crossbeam-channel = "0.5"
+wayland-backend = { version = "0.1.0-beta.15" }
 
 [[bin]]
 name = "connect_four"
 path = "src/main.rs"
-
-[[example]]
-name = "game_demo"
-path = "examples/game_demo.rs"
 
 # Enable fast compile times during development
 [profile.dev]

@@ -247,12 +247,11 @@ pub fn handle_input(
 
 pub fn handle_piece_drop(
     mut commands: Commands,
-    mut game_state: ResMut<GameState>,
     mut piece_drop_events: EventReader<PieceDropEvent>,
 ) {
     for event in piece_drop_events.read() {
         // Always use the game state's current player for piece color (matches latest move)
-        let piece_color = game_state.current_player;
+        let piece_color = event.player;
 
         let target_row = event.row;
 
@@ -283,7 +282,15 @@ pub fn handle_piece_drop(
                 timer: Timer::from_seconds(0.5, TimerMode::Once),
             },
         ));
-        game_state.current_player = event.swap_to_player;
+    }
+}
+
+pub fn handle_change_player(
+    mut game_state: ResMut<GameState>,
+    mut change_player_events: EventReader<ChangePlayerEvent>,
+) {
+    for event in change_player_events.read() {
+        game_state.current_player = event.player;
     }
 }
 

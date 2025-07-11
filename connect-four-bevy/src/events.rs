@@ -6,7 +6,12 @@ use crate::game_logic::Player;
 pub struct PieceDropEvent {
     pub column: usize,
     pub row: usize,
-    pub swap_to_player: Player,
+    pub player: Player,
+}
+
+#[derive(Event)]
+pub struct ChangePlayerEvent {
+    pub player: Player,
 }
 
 #[derive(Event)]
