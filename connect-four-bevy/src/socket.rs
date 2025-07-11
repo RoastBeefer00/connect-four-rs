@@ -1,9 +1,9 @@
 use std::time::Duration;
 
+use async_channel::{Receiver, Sender};
 use bevy::{prelude::*, tasks::futures_lite::FutureExt};
 use bevy_tokio_tasks::{TokioTasksPlugin, TokioTasksRuntime};
 use connect_four_lib::web_socket::WsMsg;
-use crossbeam_channel::{unbounded, Receiver, Sender};
 use rust_socketio::{
     asynchronous::{Client, ClientBuilder},
     Payload,
@@ -50,16 +50,10 @@ impl Plugin for SocketIOPlugin {
     }
 }
 
-fn setup_socketio_client(
-    mut commands: Commands,
-    runtime: ResMut<TokioTasksRuntime>,
-    // sender: Res<SocketIOMessageSender>,
-    // receiver: Res<SocketIOMessageReceiver>,
-    // mut event_writer: EventWriter<SocketMessageEvent>,
-) {
+fn setup_socketio_client(mut commands: Commands, runtime: ResMut<TokioTasksRuntime>) {
     // Create channels for communication
-    let (outbound_sender, outbound_receiver) = unbounded::<WsMsg>();
-    let (inbound_sender, inbound_receiver) = unbounded::<WsMsg>();
+    let (outbound_sender, outbound_receiver) = async_channel::unbounded();
+    let (inbound_sender, inbound_receiver) = async_channel::unbounded();
 
     // Add resources to Bevy
     commands.insert_resource(SocketIOMessageSender(outbound_sender));
