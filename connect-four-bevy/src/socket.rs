@@ -84,7 +84,7 @@ fn setup_socketio_client(
 
         spawn_local(async move {
             // Send messages from Bevy to the server
-            while let Ok(msg) = outbound_receiver.try_recv() {
+            while let Ok(msg) = outbound_receiver.recv().await {
                 info!("waiting for messages to send to server");
                 // let message_type = match msg {
                 //     WsMsg::ClientJoin { id: _ } => "join",
@@ -150,19 +150,21 @@ fn handle_server_messages(
                 if my_player.id.to_string() == *id {
                     my_player.color = Some(client_player.into());
                 }
-                for (i, row) in game_state.board.iter().enumerate() {
-                    for (j, col) in row.iter().enumerate() {
-                        if let Some(piece) = col {
-                            piece_event_writer.write(PieceDropEvent {
-                                column: j,
-                                row: i,
-                                player: *piece,
-                            });
+                if id == &my_player.id.to_string() {
+                    for (i, row) in game_state.board.iter().enumerate() {
+                        for (j, col) in row.iter().enumerate() {
+                            if let Some(piece) = col {
+                                piece_event_writer.write(PieceDropEvent {
+                                    column: j,
+                                    row: i,
+                                    player: *piece,
+                                });
+                            }
                         }
                     }
+                    game_state.current_player = active_player.into();
+                    game_state.status = GameStatus::Playing;
                 }
-                game_state.current_player = active_player.into();
-                game_state.status = GameStatus::Playing;
             }
             WsMsg::PlayerLeave { id } => {
                 info!("Player {} has left", id);
