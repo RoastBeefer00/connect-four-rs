@@ -1,6 +1,7 @@
 use crate::events::*;
 use crate::game_logic::*;
-use crate::socket::SocketIOMessageSender;
+use crate::socket::SendToServerEvent;
+use crate::socket::SocketMessageSender;
 use bevy::prelude::*;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
@@ -124,11 +125,12 @@ use crate::WsMsg;
 #[allow(clippy::too_many_arguments)]
 pub fn handle_input(
     _commands: Commands,
-    sender: Res<SocketIOMessageSender>,
+    // sender: Res<SocketMessageSender>,
     mouse_input: Res<ButtonInput<MouseButton>>,
     windows: Query<&Window>,
     camera: Query<(&Camera, &GlobalTransform)>,
     game_state: Res<GameState>,
+    mut sender: EventWriter<SendToServerEvent>,
     mut param_set: ParamSet<(
         Query<(&mut Sprite, &mut Visibility, &ColumnHighlight)>,
         Query<(&mut Sprite, &mut Visibility, &PreviewPiece)>,
@@ -232,13 +234,11 @@ pub fn handle_input(
                 let col = col as usize;
                 info!("mouse click for move on col: {col}");
                 if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                    sender
-                        .0
-                        .send(WsMsg::ClientMove {
-                            id: my_player.clone().id.to_string(),
-                            col,
-                        })
-                        .unwrap();
+                    info!("sending message to server for move");
+                    sender.write(SendToServerEvent(WsMsg::ClientMove {
+                        id: my_player.clone().id.to_string(),
+                        col,
+                    }));
                 }
             }
         }

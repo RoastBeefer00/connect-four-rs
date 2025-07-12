@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use clap::Parser;
 use connect_four_lib::web_socket::WsMsg;
 use socket::SocketIOPlugin;
 
@@ -14,15 +13,6 @@ use events::*;
 use game_logic::*;
 use ui::*;
 use uuid::Uuid;
-
-/// Command line arguments
-#[derive(Parser, Debug)]
-#[command(author, version, about)]
-struct Args {
-    /// Run offline (no websocket)
-    #[arg(long)]
-    offline: bool,
-}
 
 fn main() {
     // let args = Args::parse();
