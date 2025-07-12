@@ -2,10 +2,17 @@
 
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_tokio_tasks::TokioTasksRuntime;
 use connect_four_lib::web_socket::WsMsg;
 use futures::{SinkExt, StreamExt};
+#[cfg(target_arch = "wasm32")]
 use gloo_net::websocket::{futures::WebSocket, Message};
+#[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub use tokio_tungstenite::connect_async;
 
 use crate::{
     events::{ChangePlayerEvent, PieceDropEvent},
@@ -14,11 +21,6 @@ use crate::{
     MyPlayerInfo,
 };
 
-// A resource to hold the sender end of our channel for outbound messages.
-// pub struct WebSocketChannel {
-//     sender: Sender<WsMsg>,
-//     receiver: Receiver<WsMsg>,
-// }
 #[derive(Resource)]
 pub struct SocketMessageSender(pub Sender<WsMsg>);
 
@@ -38,6 +40,21 @@ pub struct SocketIOPlugin;
 
 impl Plugin for SocketIOPlugin {
     fn build(&self, app: &mut App) {
+        #[cfg(not(target_arch = "wasm32"))]
+        app.add_event::<SocketMessageEvent>()
+            .add_event::<SendToServerEvent>()
+            .add_plugins(bevy_tokio_tasks::TokioTasksPlugin::default())
+            .add_systems(Startup, setup_socketio_client.before(setup_ui))
+            .add_systems(
+                Update,
+                (
+                    receive_messages_from_server,
+                    handle_server_messages,
+                    send_messages_to_server,
+                ),
+            );
+
+        #[cfg(target_arch = "wasm32")]
         app.add_event::<SocketMessageEvent>()
             .add_event::<SendToServerEvent>()
             .add_systems(Startup, setup_socketio_client.before(setup_ui))
@@ -56,6 +73,7 @@ fn setup_socketio_client(
     mut commands: Commands,
     player: Res<MyPlayerInfo>,
     mut sender: EventWriter<SendToServerEvent>,
+    #[cfg(not(target_arch = "wasm32"))] runtime: ResMut<TokioTasksRuntime>,
 ) {
     // Create channels for communication
     let (outbound_sender, outbound_receiver) = async_channel::unbounded();
@@ -65,6 +83,7 @@ fn setup_socketio_client(
     commands.insert_resource(SocketMessageSender(outbound_sender));
     commands.insert_resource(SocketMessageReceiver(inbound_receiver));
 
+    #[cfg(target_arch = "wasm32")]
     spawn_local(async move {
         info!("starting websocket connection");
         let ws = WebSocket::open("ws://127.0.0.1:3000").unwrap();
@@ -83,24 +102,55 @@ fn setup_socketio_client(
         });
 
         spawn_local(async move {
-            // Send messages from Bevy to the server
             while let Ok(msg) = outbound_receiver.recv().await {
                 info!("waiting for messages to send to server");
-                // let message_type = match msg {
-                //     WsMsg::ClientJoin { id: _ } => "join",
-                //     WsMsg::PlayerLeave { id: _ } => "leave",
-                //     WsMsg::ClientMove { id: _, col: _ } => "move",
-                //     WsMsg::GameOver { winner: _ } => "gameover",
-                //     _ => "client_doesnt_send_these",
-                // };
                 if let Ok(str_msg) = serde_json::to_string(&msg) {
                     info!("sending message to server {:?}", msg);
                     let _ = write.send(Message::Text(str_msg)).await;
                 }
             }
         });
-        // tokio::time::sleep(Duration::from_millis(10)).await;
     });
+
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        // use bevy_tokio_tasks::TokioTasksRuntime;
+        // let runtime = TokioTasksRuntime::get();
+        runtime.spawn_background_task(|_ctx| async move {
+            info!("starting websocket connection");
+            let (ws_stream, _) = connect_async("ws://127.0.0.1:3000")
+                .await
+                .expect("Failed to connect");
+            info!("successfully made websocket connection");
+
+            let (mut write, mut read) = ws_stream.split();
+            let inbound_sender_clone = inbound_sender.clone();
+            let read_task = tokio::spawn(async move {
+                while let Some(msg) = read.next().await {
+                    if let Ok(tokio_tungstenite::tungstenite::Message::Text(text)) = msg {
+                        if let Ok(msg) = serde_json::from_str(&text) {
+                            info!("sending message to bevy {:?}", msg);
+                            let _ = inbound_sender_clone.send(msg).await;
+                        }
+                    }
+                }
+            });
+            let write_task = tokio::spawn(async move {
+                while let Ok(msg) = outbound_receiver.recv().await {
+                    info!("waiting for messages to send to server");
+                    if let Ok(str_msg) = serde_json::to_string(&msg) {
+                        info!("sending message to server {:?}", msg);
+                        let _ = write
+                            .send(tokio_tungstenite::tungstenite::Message::Text(
+                                str_msg.into(),
+                            ))
+                            .await;
+                    }
+                }
+            });
+            let _ = futures::future::join(read_task, write_task).await;
+        });
+    }
     info!("writing join event");
     sender.write(SendToServerEvent(WsMsg::ClientJoin {
         id: player.id.to_string(),
