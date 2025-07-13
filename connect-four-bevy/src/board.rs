@@ -1,7 +1,6 @@
 use crate::events::*;
 use crate::game_logic::*;
 use crate::socket::SendToServerEvent;
-use crate::socket::SocketMessageSender;
 use bevy::prelude::*;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
@@ -14,14 +13,19 @@ pub const BOARD_OFFSET_Y: f32 = -60.0; // Offset to position board below UI
 
 #[derive(Component)]
 pub struct BoardCell {
+    #[allow(dead_code)]
     pub row: usize,
+    #[allow(dead_code)]
     pub col: usize,
 }
 
 #[derive(Component)]
 pub struct GamePiece {
+    #[allow(dead_code)]
     pub row: usize,
+    #[allow(dead_code)]
     pub col: usize,
+    #[allow(dead_code)]
     pub player: Player,
 }
 

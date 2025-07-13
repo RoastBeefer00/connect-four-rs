@@ -15,6 +15,7 @@ mod handlers;
 
 #[derive(Debug)]
 struct Connection {
+    #[allow(dead_code)]
     id: String,
     tx: mpsc::UnboundedSender<WsMsg>,
 }

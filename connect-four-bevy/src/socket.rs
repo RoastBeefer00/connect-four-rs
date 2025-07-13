@@ -196,7 +196,7 @@ fn handle_server_messages(
                 game_board,
             } => {
                 info!("Player {} has joined as color {:?}", id, client_player);
-                game_state.get_state_from_lib(game_board);
+                game_state.get_board_from_server(game_board);
                 if my_player.id.to_string() == *id {
                     my_player.color = Some(client_player.into());
                 }

@@ -72,6 +72,7 @@ pub enum GameStatus {
     Playing,
     Won(Player),
     Draw,
+    WaitingForPlayers,
 }
 
 type Board = [[Option<Player>; 7]; 6];
@@ -96,10 +97,12 @@ impl Default for GameState {
 }
 
 impl GameState {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self::default()
     }
 
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         *self = Self::new();
     }
@@ -111,6 +114,7 @@ impl GameState {
         self.board[0][col].is_some()
     }
 
+    #[allow(dead_code)]
     pub fn get_piece(&self, row: usize, col: usize) -> Option<Player> {
         if row < 6 && col < 7 {
             self.board[row][col]
@@ -119,7 +123,7 @@ impl GameState {
         }
     }
 
-    pub fn get_state_from_lib(
+    pub fn get_board_from_server(
         &mut self,
         board: &[[std::option::Option<connect_four_lib::player::Player>; 7]; 6],
     ) {

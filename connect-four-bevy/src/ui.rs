@@ -1,14 +1,16 @@
-use crate::{game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
+use crate::game_logic::*;
 use bevy::prelude::*;
-use connect_four_lib::web_socket::WsMsg;
 
 #[derive(Component)]
 pub struct MyTurnIndicator;
 
 #[derive(Resource, Default)]
 pub struct GameScore {
+    #[allow(dead_code)]
     pub red_wins: u32,
+    #[allow(dead_code)]
     pub yellow_wins: u32,
+    #[allow(dead_code)]
     pub draws: u32,
 }
 
@@ -21,11 +23,7 @@ pub struct ScoreText;
 #[derive(Component)]
 pub struct ResetButton;
 
-pub fn setup_ui(
-    mut commands: Commands,
-    player: Res<MyPlayerInfo>,
-    mut sender: EventWriter<SendToServerEvent>,
-) {
+pub fn setup_ui(mut commands: Commands) {
     // Root UI node for layout
     commands
         .spawn((
