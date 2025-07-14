@@ -1,6 +1,5 @@
-use crate::{game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
+use crate::{buttons::SurrenderButton, game_logic::*};
 use bevy::prelude::*;
-use connect_four_lib::web_socket::WsMsg;
 
 #[derive(Component)]
 pub struct MyTurnIndicator;
@@ -13,21 +12,15 @@ pub struct GameScore {
 }
 
 #[derive(Component)]
+pub struct RootUINode;
+#[derive(Component)]
 pub struct GameStatusText;
 #[derive(Component)]
 pub struct CurrentPlayerText;
 #[derive(Component)]
 pub struct ScoreText;
-#[derive(Component)]
-pub struct ResetButton;
-#[derive(Component)]
-pub struct NewGameButton;
 
-pub fn setup_ui(
-    mut commands: Commands,
-    player: Res<MyPlayerInfo>,
-    mut sender: EventWriter<SendToServerEvent>,
-) {
+pub fn setup_ui(mut commands: Commands) {
     // Root UI node for layout
     commands
         .spawn((
@@ -41,6 +34,7 @@ pub fn setup_ui(
                 ..Default::default()
             },
             BackgroundColor(Color::NONE),
+            RootUINode,
         ))
         .with_children(|parent| {
             // Top indicator
@@ -75,8 +69,8 @@ pub fn setup_ui(
                         ..Default::default()
                     },
                     BackgroundColor(Color::BLACK),
+                    SurrenderButton,
                 ))
-                .insert(ResetButton)
                 .with_children(|button| {
                     button.spawn((
                         Text::new("Surrender"),

@@ -15,7 +15,7 @@ use wasm_bindgen_futures::spawn_local;
 pub use tokio_tungstenite::connect_async;
 
 use crate::{
-    events::{ChangePlayerEvent, PieceDropEvent},
+    events::{ChangePlayerEvent, GameOverEvent, GameResetEvent, PieceDropEvent},
     game_logic::{GameState, GameStatus, Player},
     ui::setup_ui,
     MyPlayerInfo,
@@ -186,6 +186,8 @@ fn handle_server_messages(
     mut my_player: ResMut<MyPlayerInfo>,
     mut piece_event_writer: EventWriter<PieceDropEvent>,
     mut change_player_event_writer: EventWriter<ChangePlayerEvent>,
+    mut game_over_event_writer: EventWriter<GameOverEvent>,
+    mut reset_event_writer: EventWriter<GameResetEvent>,
 ) {
     for event in socket_events.read() {
         match &event.0 {
@@ -242,7 +244,11 @@ fn handle_server_messages(
             WsMsg::GameOver { winner } => {
                 let player = Player::from(winner);
                 info!("Player {} wins the game!", player);
-                game_state.status = GameStatus::Won(player);
+                game_over_event_writer.write(GameOverEvent { winner: player });
+            }
+            WsMsg::NewGame => {
+                info!("restarting the game");
+                reset_event_writer.write(GameResetEvent);
             }
             _ => {}
         }

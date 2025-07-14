@@ -1,8 +1,12 @@
+use crate::buttons::NewGameButton;
+use crate::buttons::SurrenderButton;
 use crate::events::*;
 use crate::game_logic::*;
 use crate::socket::SendToServerEvent;
 use crate::socket::SocketMessageSender;
+use crate::ui::RootUINode;
 use bevy::prelude::*;
+use bevy::transform::commands;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
 pub const BOARD_HEIGHT: f32 = CELL_SIZE * 6.0;
@@ -337,12 +341,87 @@ fn ease_out_bounce(t: f32) -> f32 {
 // Clean up pieces when game resets
 pub fn cleanup_pieces(
     mut commands: Commands,
+    mut game_state: ResMut<GameState>,
     pieces: Query<Entity, Or<(With<GamePiece>, With<AnimatingPiece>)>>,
+    mut ui_query: Query<Entity, With<RootUINode>>,
+    new_game_buttons: Query<Entity, With<NewGameButton>>,
     mut reset_events: EventReader<GameResetEvent>,
 ) {
     for _ in reset_events.read() {
+        game_state.current_player = Player::One;
+        game_state.status = GameStatus::Playing;
         for entity in pieces.iter() {
             commands.entity(entity).despawn();
+        }
+        for entity in new_game_buttons.iter() {
+            commands.entity(entity).despawn();
+        }
+        if let Ok(node) = ui_query.single_mut() {
+            commands.entity(node).with_children(|parent| {
+                parent
+                    .spawn((
+                        Button,
+                        Node {
+                            margin: UiRect::all(Val::Px(10.0)),
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..Default::default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                        SurrenderButton,
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            Text::new("Surrender"),
+                            TextFont {
+                                // font: asset_server.load("default_font.ttf"),
+                                font_size: 20.0,
+                                ..Default::default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+            });
+        }
+    }
+}
+
+pub fn handle_game_over(
+    mut commands: Commands,
+    mut game_state: ResMut<GameState>,
+    mut events: EventReader<GameOverEvent>,
+    mut ui_query: Query<Entity, With<RootUINode>>,
+    mut surrender_button: Query<Entity, With<SurrenderButton>>,
+) {
+    for event in events.read() {
+        game_state.status = GameStatus::Won(event.winner);
+        if let Ok(button) = surrender_button.single_mut() {
+            commands.entity(button).despawn();
+        }
+        if let Ok(node) = ui_query.single_mut() {
+            commands.entity(node).with_children(|parent| {
+                parent
+                    .spawn((
+                        Button,
+                        Node {
+                            margin: UiRect::all(Val::Px(10.0)),
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..Default::default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                        NewGameButton,
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            Text::new("New Game"),
+                            TextFont {
+                                // font: asset_server.load("default_font.ttf"),
+                                font_size: 20.0,
+                                ..Default::default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+            });
         }
     }
 }

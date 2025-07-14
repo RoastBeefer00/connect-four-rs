@@ -1,6 +1,7 @@
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
+use connect_four_lib::game::Game;
 use connect_four_lib::player::Player;
 use futures_util::SinkExt;
 use futures_util::stream::StreamExt;
@@ -119,6 +120,30 @@ async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) 
                                 let mut map = state.player_map.write().await;
                                 if let Some(color) = map.remove(&id) {
                                     state.set_player_for_color(color, None).await;
+                                }
+                            }
+                            WsMsg::ClientSurrender { player } => {
+                                info!("player {} has surrendered", player);
+                                let mut game = state.game.write().await;
+                                game.surrender(player);
+                                if let Some(winner) = game.get_winner() {
+                                    let msg = WsMsg::GameOver { winner };
+                                    info!("sending message {:?}", msg);
+                                    let conns_guard = conns.read().await;
+                                    for (_, conn) in conns_guard.iter() {
+                                        let _ = conn.tx.send(msg.clone());
+                                    }
+                                }
+                            }
+                            WsMsg::NewGame => {
+                                info!("making new game");
+                                let mut game = state.game.write().await;
+                                *game = Game::new();
+                                let msg = WsMsg::NewGame;
+                                info!("sending message {:?}", msg);
+                                let conns_guard = conns.read().await;
+                                for (_, conn) in conns_guard.iter() {
+                                    let _ = conn.tx.send(msg.clone());
                                 }
                             }
                             _ => {}

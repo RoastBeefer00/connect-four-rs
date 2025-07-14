@@ -48,4 +48,8 @@ pub enum WsMsg {
         // Player that won the game
         winner: Player,
     },
+    ClientSurrender {
+        player: Player,
+    },
+    NewGame,
 }
