@@ -20,6 +20,8 @@ pub struct CurrentPlayerText;
 pub struct ScoreText;
 #[derive(Component)]
 pub struct ResetButton;
+#[derive(Component)]
+pub struct NewGameButton;
 
 pub fn setup_ui(
     mut commands: Commands,
@@ -34,7 +36,7 @@ pub fn setup_ui(
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
+                justify_content: JustifyContent::FlexStart,
                 margin: UiRect::all(Val::Px(10.0)),
                 ..Default::default()
             },
@@ -57,7 +59,7 @@ pub fn setup_ui(
             // Spacer
             parent.spawn((
                 Node {
-                    flex_grow: 1.0,
+                    flex_grow: 0.9,
                     ..Default::default()
                 },
                 BackgroundColor(Color::NONE),
@@ -69,6 +71,7 @@ pub fn setup_ui(
                     Button,
                     Node {
                         margin: UiRect::all(Val::Px(10.0)),
+                        padding: UiRect::all(Val::Px(10.0)),
                         ..Default::default()
                     },
                     BackgroundColor(Color::BLACK),
@@ -76,7 +79,7 @@ pub fn setup_ui(
                 .insert(ResetButton)
                 .with_children(|button| {
                     button.spawn((
-                        Text::new("Reset"),
+                        Text::new("Surrender"),
                         TextFont {
                             // font: asset_server.load("default_font.ttf"),
                             font_size: 20.0,
