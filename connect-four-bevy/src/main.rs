@@ -21,7 +21,7 @@ fn main() {
     // let args = Args::parse();
     // Track our player id
     let my_player = MyPlayerInfo {
-        id: Uuid::new_v4(),
+        id: None,
         color: None,
     };
     App::new()
@@ -69,7 +69,7 @@ pub enum GameSide {
 
 #[derive(Resource, Clone, Default)]
 pub struct MyPlayerInfo {
-    pub id: Uuid,
+    pub id: Option<String>,
     pub color: Option<Player>,
 }
 

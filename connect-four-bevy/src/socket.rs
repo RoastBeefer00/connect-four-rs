@@ -86,7 +86,7 @@ fn setup_socketio_client(
     #[cfg(target_arch = "wasm32")]
     spawn_local(async move {
         info!("starting websocket connection");
-        let ws = WebSocket::open("ws://127.0.0.1:3000").unwrap();
+        let ws = WebSocket::open("wss://connect-four-541571992023.us-west1.run.app/ws").unwrap();
         info!("successfully made websocket connection");
 
         let (mut write, mut read) = ws.split();
@@ -118,9 +118,10 @@ fn setup_socketio_client(
         // let runtime = TokioTasksRuntime::get();
         runtime.spawn_background_task(|_ctx| async move {
             info!("starting websocket connection");
-            let (ws_stream, _) = connect_async("ws://127.0.0.1:3000")
-                .await
-                .expect("Failed to connect");
+            let (ws_stream, _) =
+                connect_async("wss://connect-four-541571992023.us-west1.run.app/ws")
+                    .await
+                    .expect("Failed to connect");
             info!("successfully made websocket connection");
 
             let (mut write, mut read) = ws_stream.split();
@@ -151,10 +152,10 @@ fn setup_socketio_client(
             let _ = futures::future::join(read_task, write_task).await;
         });
     }
-    info!("writing join event");
-    sender.write(SendToServerEvent(WsMsg::ClientJoin {
-        id: player.id.to_string(),
-    }));
+    // info!("writing join event");
+    // sender.write(SendToServerEvent(WsMsg::ClientJoin {
+    //     id: player.id.to_string(),
+    // }));
 }
 
 // System to handle outbound messages (Bevy -> Server)
@@ -199,10 +200,9 @@ fn handle_server_messages(
             } => {
                 info!("Player {} has joined as color {:?}", id, client_player);
                 game_state.get_state_from_lib(game_board);
-                if my_player.id.to_string() == *id {
+                if my_player.id.is_none() {
+                    my_player.id = Some(id.clone());
                     my_player.color = Some(client_player.into());
-                }
-                if id == &my_player.id.to_string() {
                     for (i, row) in game_state.board.iter().enumerate() {
                         for (j, col) in row.iter().enumerate() {
                             if let Some(piece) = col {

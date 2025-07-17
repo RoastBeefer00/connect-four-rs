@@ -220,10 +220,13 @@ pub fn handle_input(
                 {
                     let col = col as usize;
                     info!("mouse click for move on col: {col}");
-                    if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
+                    if game_state.status == GameStatus::Playing
+                        && !game_state.is_column_full(col)
+                        && my_player.id.is_some()
+                    {
                         info!("sending message to server for move");
                         sender.write(SendToServerEvent(WsMsg::ClientMove {
-                            id: my_player.clone().id.to_string(),
+                            id: my_player.clone().id.expect("id should be some"),
                             col,
                         }));
                     }

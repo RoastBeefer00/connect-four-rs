@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::sync::{RwLock, mpsc};
+use tower_http::services::{ServeDir, ServeFile};
 use tracing::info;
 use tracing_subscriber::FmtSubscriber;
 
@@ -49,6 +50,23 @@ impl AppState {
             _ => {}
         }
     }
+
+    async fn leave_player(&mut self, id: String) {
+        let mut red = self.red_player.write().await;
+        let mut yellow = self.yellow_player.write().await;
+        let mut players = self.player_map.write().await;
+        if let Some(player) = &*red {
+            if *player == id {
+                *red = None;
+            }
+        }
+        if let Some(player) = &*yellow {
+            if *player == id {
+                *yellow = None;
+            }
+        }
+        players.remove(&id);
+    }
 }
 
 #[tokio::main]
@@ -65,8 +83,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // let (layer, io) = SocketIo::builder().with_state(state).build_layer();
     // io.ns("/", ws_handler);
 
-    let app = Router::new().route("/", get(ws_handler)).with_state(state);
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let app = Router::new()
+        // .route("/", get(ServeFile::new("/dist/index.html")))
+        .route("/ws", get(ws_handler))
+        .with_state(state)
+        .fallback_service(ServeDir::new("dist").precompressed_gzip());
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     info!("listening on {}", addr);
     axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app)
         .await
