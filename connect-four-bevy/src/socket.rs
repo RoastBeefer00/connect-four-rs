@@ -2,15 +2,16 @@
 
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy_tokio_tasks::TokioTasksRuntime;
 use connect_four_lib::web_socket::WsMsg;
 use futures::{SinkExt, StreamExt};
+
 #[cfg(target_arch = "wasm32")]
 use gloo_net::websocket::{futures::WebSocket, Message};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
+#[cfg(not(target_arch = "wasm32"))]
+use bevy_tokio_tasks::TokioTasksRuntime;
 #[cfg(not(target_arch = "wasm32"))]
 pub use tokio_tungstenite::connect_async;
 
@@ -69,6 +70,19 @@ impl Plugin for SocketIOPlugin {
     }
 }
 
+fn get_ws_url() -> &'static str {
+    #[cfg(debug_assertions)]
+    {
+        info!("connecting to ws://0.0.0.0:3000/ws");
+        "ws://0.0.0.0:3000/ws"
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        info!("connecting to wss://connect-four-541571992023.us-west1.run.app/ws");
+        "wss://connect-four-541571992023.us-west1.run.app/ws"
+    }
+}
+
 fn setup_socketio_client(
     mut commands: Commands,
     player: Res<MyPlayerInfo>,
@@ -86,7 +100,7 @@ fn setup_socketio_client(
     #[cfg(target_arch = "wasm32")]
     spawn_local(async move {
         info!("starting websocket connection");
-        let ws = WebSocket::open("wss://connect-four-541571992023.us-west1.run.app/ws").unwrap();
+        let ws = WebSocket::open(get_ws_url()).unwrap();
         info!("successfully made websocket connection");
 
         let (mut write, mut read) = ws.split();
@@ -119,7 +133,7 @@ fn setup_socketio_client(
         runtime.spawn_background_task(|_ctx| async move {
             info!("starting websocket connection");
             let (ws_stream, _) =
-                connect_async("wss://connect-four-541571992023.us-west1.run.app/ws")
+                connect_async(get_ws_url())
                     .await
                     .expect("Failed to connect");
             info!("successfully made websocket connection");
@@ -152,10 +166,6 @@ fn setup_socketio_client(
             let _ = futures::future::join(read_task, write_task).await;
         });
     }
-    // info!("writing join event");
-    // sender.write(SendToServerEvent(WsMsg::ClientJoin {
-    //     id: player.id.to_string(),
-    // }));
 }
 
 // System to handle outbound messages (Bevy -> Server)
