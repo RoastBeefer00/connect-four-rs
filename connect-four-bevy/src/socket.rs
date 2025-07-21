@@ -2,20 +2,21 @@
 
 use async_channel::{Receiver, Sender};
 use bevy::prelude::*;
-#[cfg(not(target_arch = "wasm32"))]
-use bevy_tokio_tasks::TokioTasksRuntime;
 use connect_four_lib::web_socket::WsMsg;
 use futures::{SinkExt, StreamExt};
+
 #[cfg(target_arch = "wasm32")]
 use gloo_net::websocket::{futures::WebSocket, Message};
 #[cfg(target_arch = "wasm32")]
 use wasm_bindgen_futures::spawn_local;
 
 #[cfg(not(target_arch = "wasm32"))]
+use bevy_tokio_tasks::TokioTasksRuntime;
+#[cfg(not(target_arch = "wasm32"))]
 pub use tokio_tungstenite::connect_async;
 
 use crate::{
-    events::{ChangePlayerEvent, PieceDropEvent},
+    events::{ChangePlayerEvent, GameOverEvent, GameResetEvent, PieceDropEvent},
     game_logic::{GameState, GameStatus, Player},
     ui::setup_ui,
     MyPlayerInfo,
@@ -69,6 +70,19 @@ impl Plugin for SocketIOPlugin {
     }
 }
 
+fn get_ws_url() -> &'static str {
+    #[cfg(debug_assertions)]
+    {
+        info!("connecting to ws://0.0.0.0:3000/ws");
+        "ws://0.0.0.0:3000/ws"
+    }
+    #[cfg(not(debug_assertions))]
+    {
+        info!("connecting to wss://connect-four-541571992023.us-west1.run.app/ws");
+        "wss://connect-four-541571992023.us-west1.run.app/ws"
+    }
+}
+
 fn setup_socketio_client(
     mut commands: Commands,
     player: Res<MyPlayerInfo>,
@@ -86,7 +100,7 @@ fn setup_socketio_client(
     #[cfg(target_arch = "wasm32")]
     spawn_local(async move {
         info!("starting websocket connection");
-        let ws = WebSocket::open("ws://127.0.0.1:3000").unwrap();
+        let ws = WebSocket::open(get_ws_url()).unwrap();
         info!("successfully made websocket connection");
 
         let (mut write, mut read) = ws.split();
@@ -118,9 +132,10 @@ fn setup_socketio_client(
         // let runtime = TokioTasksRuntime::get();
         runtime.spawn_background_task(|_ctx| async move {
             info!("starting websocket connection");
-            let (ws_stream, _) = connect_async("ws://127.0.0.1:3000")
-                .await
-                .expect("Failed to connect");
+            let (ws_stream, _) =
+                connect_async(get_ws_url())
+                    .await
+                    .expect("Failed to connect");
             info!("successfully made websocket connection");
 
             let (mut write, mut read) = ws_stream.split();
@@ -151,10 +166,6 @@ fn setup_socketio_client(
             let _ = futures::future::join(read_task, write_task).await;
         });
     }
-    info!("writing join event");
-    sender.write(SendToServerEvent(WsMsg::ClientJoin {
-        id: player.id.to_string(),
-    }));
 }
 
 // System to handle outbound messages (Bevy -> Server)
@@ -186,6 +197,8 @@ fn handle_server_messages(
     mut my_player: ResMut<MyPlayerInfo>,
     mut piece_event_writer: EventWriter<PieceDropEvent>,
     mut change_player_event_writer: EventWriter<ChangePlayerEvent>,
+    mut game_over_event_writer: EventWriter<GameOverEvent>,
+    mut reset_event_writer: EventWriter<GameResetEvent>,
 ) {
     for event in socket_events.read() {
         match &event.0 {
@@ -197,10 +210,9 @@ fn handle_server_messages(
             } => {
                 info!("Player {} has joined as color {:?}", id, client_player);
                 game_state.get_state_from_lib(game_board);
-                if my_player.id.to_string() == *id {
+                if my_player.id.is_none() {
+                    my_player.id = Some(id.clone());
                     my_player.color = Some(client_player.into());
-                }
-                if id == &my_player.id.to_string() {
                     for (i, row) in game_state.board.iter().enumerate() {
                         for (j, col) in row.iter().enumerate() {
                             if let Some(piece) = col {
@@ -242,7 +254,11 @@ fn handle_server_messages(
             WsMsg::GameOver { winner } => {
                 let player = Player::from(winner);
                 info!("Player {} wins the game!", player);
-                game_state.status = GameStatus::Won(player);
+                game_over_event_writer.write(GameOverEvent { winner: player });
+            }
+            WsMsg::NewGame => {
+                info!("restarting the game");
+                reset_event_writer.write(GameResetEvent);
             }
             _ => {}
         }

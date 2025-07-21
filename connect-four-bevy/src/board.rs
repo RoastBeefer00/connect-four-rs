@@ -1,8 +1,12 @@
+use crate::buttons::NewGameButton;
+use crate::buttons::SurrenderButton;
 use crate::events::*;
 use crate::game_logic::*;
 use crate::socket::SendToServerEvent;
 use crate::socket::SocketMessageSender;
+use crate::ui::RootUINode;
 use bevy::prelude::*;
+use bevy::transform::commands;
 
 pub const BOARD_WIDTH: f32 = CELL_SIZE * 7.0;
 pub const BOARD_HEIGHT: f32 = CELL_SIZE * 6.0;
@@ -148,37 +152,6 @@ pub fn handle_input(
     if let Ok((_camera, camera_transform)) = camera.single() {
         let window = match windows.single() {
             Ok(win) => win,
-            Err(_) => {
-                return; // Exit if no single window
-            }
-        };
-
-        if let Some(cursor_pos) = window.cursor_position() {
-            // Convert screen coordinates to world coordinates
-            let world_pos = camera_transform
-                .compute_matrix()
-                .transform_point3(Vec3::new(
-                    cursor_pos.x - window.width() / 2.0,
-                    cursor_pos.y - window.height() / 2.0,
-                    0.0,
-                ))
-                .truncate();
-            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
-            let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
-            for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
-                if (0..7).contains(&col) && highlight.col == col as usize {
-                    *visibility = Visibility::Visible;
-                    sprite.color = Color::srgba(1.0, 1.0, 1.0, 0.2);
-                } else {
-                    *visibility = Visibility::Hidden;
-                }
-            }
-        }
-    }
-
-    if let Ok((_camera, camera_transform)) = camera.single() {
-        let window = match windows.single() {
-            Ok(win) => win,
             Err(_) => return,
         };
         if let Some(cursor_pos) = window.cursor_position() {
@@ -190,55 +163,81 @@ pub fn handle_input(
                     0.0,
                 ))
                 .truncate();
-            let start_x = -(BOARD_WIDTH / 2.0) + (CELL_SIZE / 2.0);
-            let col = ((world_pos.x - start_x + CELL_SIZE / 2.0) / CELL_SIZE) as i32;
-
-            // Update column highlights
-            for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
-                if (0..7).contains(&col) && highlight.col == col as usize {
-                    if game_state.status == GameStatus::Playing
-                        && !game_state.is_column_full(col as usize)
-                    {
-                        *visibility = Visibility::Visible;
-                        sprite.color = Color::srgba(1.0, 1.0, 1.0, 0.2);
+            let start_x = -(BOARD_WIDTH / 2.0);
+            // let start_y = (BOARD_HEIGHT / 2.0) + BOARD_OFFSET_Y;
+            // let board_bottom = (BOARD_HEIGHT / 2.0) + BOARD_OFFSET_Y - BOARD_HEIGHT;
+            // let board_top = (BOARD_HEIGHT / 2.0) + BOARD_OFFSET_Y - 2.0 * CELL_SIZE;
+            if world_pos.x >= start_x
+                && world_pos.x <= start_x + BOARD_WIDTH
+                && world_pos.y
+                    >= ((BOARD_OFFSET_Y - BOARD_HEIGHT + (2.0 * CELL_SIZE) + (CELL_SIZE / 2.0))
+                        / 2.0)
+                && world_pos.y
+                    <= ((BOARD_OFFSET_Y + BOARD_HEIGHT + (2.0 * CELL_SIZE) + (CELL_SIZE / 2.0))
+                        / 2.0)
+            {
+                let col = (((world_pos.x - start_x) / CELL_SIZE).floor()) as i32;
+                // Update column highlights
+                for (mut sprite, mut visibility, highlight) in param_set.p0().iter_mut() {
+                    if (0..7).contains(&col) && highlight.col == col as usize {
+                        if game_state.status == GameStatus::Playing
+                            && !game_state.is_column_full(col as usize)
+                        {
+                            *visibility = Visibility::Visible;
+                            sprite.color = Color::srgba(1.0, 1.0, 1.0, 0.2);
+                        } else {
+                            *visibility = Visibility::Hidden;
+                        }
                     } else {
                         *visibility = Visibility::Hidden;
                     }
-                } else {
-                    *visibility = Visibility::Hidden;
                 }
-            }
 
-            // Update hovering preview piece color/visibility
-            for (mut sprite, mut visibility, preview) in param_set.p1().iter_mut() {
-                if (0..7).contains(&col) && preview.col == col as usize {
-                    if game_state.status == GameStatus::Playing
-                        && !game_state.is_column_full(col as usize)
-                    {
-                        *visibility = Visibility::Visible;
-                        sprite.color = game_state
-                            .current_player
-                            .color()
-                            .expect("could not get color")
-                            .with_alpha(0.7);
+                // Update hovering preview piece color/visibility
+                for (mut sprite, mut visibility, preview) in param_set.p1().iter_mut() {
+                    if (0..7).contains(&col) && preview.col == col as usize {
+                        if game_state.status == GameStatus::Playing
+                            && !game_state.is_column_full(col as usize)
+                        {
+                            *visibility = Visibility::Visible;
+                            sprite.color = game_state
+                                .current_player
+                                .color()
+                                .expect("could not get color")
+                                .with_alpha(0.7);
+                        } else {
+                            *visibility = Visibility::Hidden;
+                        }
                     } else {
                         *visibility = Visibility::Hidden;
                     }
-                } else {
+                }
+
+                // Handle mouse clicks
+                if mouse_input.just_pressed(MouseButton::Left)
+                    && (0..7).contains(&col)
+                    && is_my_turn
+                {
+                    let col = col as usize;
+                    info!("mouse click for move on col: {col}");
+                    if game_state.status == GameStatus::Playing
+                        && !game_state.is_column_full(col)
+                        && my_player.id.is_some()
+                    {
+                        info!("sending message to server for move");
+                        sender.write(SendToServerEvent(WsMsg::ClientMove {
+                            id: my_player.clone().id.expect("id should be some"),
+                            col,
+                        }));
+                    }
+                }
+            } else {
+                // Hide all highlights and previews when not on board
+                for (_sprite, mut visibility, _highlight) in param_set.p0().iter_mut() {
                     *visibility = Visibility::Hidden;
                 }
-            }
-
-            // Handle mouse clicks
-            if mouse_input.just_pressed(MouseButton::Left) && (0..7).contains(&col) && is_my_turn {
-                let col = col as usize;
-                info!("mouse click for move on col: {col}");
-                if game_state.status == GameStatus::Playing && !game_state.is_column_full(col) {
-                    info!("sending message to server for move");
-                    sender.write(SendToServerEvent(WsMsg::ClientMove {
-                        id: my_player.clone().id.to_string(),
-                        col,
-                    }));
+                for (_sprite, mut visibility, _preview) in param_set.p1().iter_mut() {
+                    *visibility = Visibility::Hidden;
                 }
             }
         }
@@ -345,12 +344,87 @@ fn ease_out_bounce(t: f32) -> f32 {
 // Clean up pieces when game resets
 pub fn cleanup_pieces(
     mut commands: Commands,
+    mut game_state: ResMut<GameState>,
     pieces: Query<Entity, Or<(With<GamePiece>, With<AnimatingPiece>)>>,
+    mut ui_query: Query<Entity, With<RootUINode>>,
+    new_game_buttons: Query<Entity, With<NewGameButton>>,
     mut reset_events: EventReader<GameResetEvent>,
 ) {
     for _ in reset_events.read() {
+        game_state.current_player = Player::One;
+        game_state.status = GameStatus::Playing;
         for entity in pieces.iter() {
             commands.entity(entity).despawn();
+        }
+        for entity in new_game_buttons.iter() {
+            commands.entity(entity).despawn();
+        }
+        if let Ok(node) = ui_query.single_mut() {
+            commands.entity(node).with_children(|parent| {
+                parent
+                    .spawn((
+                        Button,
+                        Node {
+                            margin: UiRect::all(Val::Px(10.0)),
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..Default::default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                        SurrenderButton,
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            Text::new("Surrender"),
+                            TextFont {
+                                // font: asset_server.load("default_font.ttf"),
+                                font_size: 20.0,
+                                ..Default::default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+            });
+        }
+    }
+}
+
+pub fn handle_game_over(
+    mut commands: Commands,
+    mut game_state: ResMut<GameState>,
+    mut events: EventReader<GameOverEvent>,
+    mut ui_query: Query<Entity, With<RootUINode>>,
+    mut surrender_button: Query<Entity, With<SurrenderButton>>,
+) {
+    for event in events.read() {
+        game_state.status = GameStatus::Won(event.winner);
+        if let Ok(button) = surrender_button.single_mut() {
+            commands.entity(button).despawn();
+        }
+        if let Ok(node) = ui_query.single_mut() {
+            commands.entity(node).with_children(|parent| {
+                parent
+                    .spawn((
+                        Button,
+                        Node {
+                            margin: UiRect::all(Val::Px(10.0)),
+                            padding: UiRect::all(Val::Px(10.0)),
+                            ..Default::default()
+                        },
+                        BackgroundColor(Color::BLACK),
+                        NewGameButton,
+                    ))
+                    .with_children(|button| {
+                        button.spawn((
+                            Text::new("New Game"),
+                            TextFont {
+                                // font: asset_server.load("default_font.ttf"),
+                                font_size: 20.0,
+                                ..Default::default()
+                            },
+                            TextColor(Color::WHITE),
+                        ));
+                    });
+            });
         }
     }
 }

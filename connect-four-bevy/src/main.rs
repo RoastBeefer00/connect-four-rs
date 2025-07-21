@@ -3,6 +3,7 @@ use connect_four_lib::web_socket::WsMsg;
 use socket::SocketIOPlugin;
 
 mod board;
+mod buttons;
 mod events;
 mod game_logic;
 mod socket;
@@ -14,11 +15,13 @@ use game_logic::*;
 use ui::*;
 use uuid::Uuid;
 
+use crate::buttons::{new_game_button_action, surrender_button_action};
+
 fn main() {
     // let args = Args::parse();
     // Track our player id
     let my_player = MyPlayerInfo {
-        id: Uuid::new_v4(),
+        id: None,
         color: None,
     };
     App::new()
@@ -47,9 +50,12 @@ fn main() {
                 handle_input,
                 handle_piece_drop,
                 handle_change_player.after(handle_piece_drop),
+                handle_game_over,
                 ui::update_my_turn_indicator,
                 animate_pieces,
                 cleanup_pieces,
+                surrender_button_action,
+                new_game_button_action,
             ),
         )
         .run();
@@ -63,7 +69,7 @@ pub enum GameSide {
 
 #[derive(Resource, Clone, Default)]
 pub struct MyPlayerInfo {
-    pub id: Uuid,
+    pub id: Option<String>,
     pub color: Option<Player>,
 }
 

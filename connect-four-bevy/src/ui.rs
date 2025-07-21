@@ -1,6 +1,5 @@
-use crate::{game_logic::*, socket::SendToServerEvent, MyPlayerInfo};
+use crate::{buttons::SurrenderButton, game_logic::*};
 use bevy::prelude::*;
-use connect_four_lib::web_socket::WsMsg;
 
 #[derive(Component)]
 pub struct MyTurnIndicator;
@@ -13,19 +12,15 @@ pub struct GameScore {
 }
 
 #[derive(Component)]
+pub struct RootUINode;
+#[derive(Component)]
 pub struct GameStatusText;
 #[derive(Component)]
 pub struct CurrentPlayerText;
 #[derive(Component)]
 pub struct ScoreText;
-#[derive(Component)]
-pub struct ResetButton;
 
-pub fn setup_ui(
-    mut commands: Commands,
-    player: Res<MyPlayerInfo>,
-    mut sender: EventWriter<SendToServerEvent>,
-) {
+pub fn setup_ui(mut commands: Commands) {
     // Root UI node for layout
     commands
         .spawn((
@@ -34,11 +29,12 @@ pub fn setup_ui(
                 height: Val::Percent(100.0),
                 flex_direction: FlexDirection::Column,
                 align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
+                justify_content: JustifyContent::FlexStart,
                 margin: UiRect::all(Val::Px(10.0)),
                 ..Default::default()
             },
             BackgroundColor(Color::NONE),
+            RootUINode,
         ))
         .with_children(|parent| {
             // Top indicator
@@ -57,7 +53,7 @@ pub fn setup_ui(
             // Spacer
             parent.spawn((
                 Node {
-                    flex_grow: 1.0,
+                    flex_grow: 0.9,
                     ..Default::default()
                 },
                 BackgroundColor(Color::NONE),
@@ -69,14 +65,15 @@ pub fn setup_ui(
                     Button,
                     Node {
                         margin: UiRect::all(Val::Px(10.0)),
+                        padding: UiRect::all(Val::Px(10.0)),
                         ..Default::default()
                     },
                     BackgroundColor(Color::BLACK),
+                    SurrenderButton,
                 ))
-                .insert(ResetButton)
                 .with_children(|button| {
                     button.spawn((
-                        Text::new("Reset"),
+                        Text::new("Surrender"),
                         TextFont {
                             // font: asset_server.load("default_font.ttf"),
                             font_size: 20.0,

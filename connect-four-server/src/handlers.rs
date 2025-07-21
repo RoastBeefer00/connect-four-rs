@@ -1,11 +1,13 @@
 use axum::extract::State;
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::Response;
+use connect_four_lib::game::Game;
 use connect_four_lib::player::Player;
 use futures_util::SinkExt;
 use futures_util::stream::StreamExt;
 use tokio::sync::mpsc::{self};
 use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{AppState, Connection, WsMsg};
 
@@ -13,7 +15,7 @@ pub async fn ws_handler(ws: WebSocketUpgrade, State(state): State<AppState>) -> 
     ws.on_upgrade(move |socket| websocket_connection(socket, State(state)))
 }
 
-async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) {
+async fn websocket_connection(socket: WebSocket, State(mut state): State<AppState>) {
     info!("socket connected: {:?}", socket);
     let connections = state.connections.clone();
     let connection_id = uuid::Uuid::new_v4().to_string();
@@ -32,8 +34,42 @@ async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) 
     }
 
     let (mut sender, mut receiver) = socket.split();
-    // Handle incoming messages and broadcast to all
     let conns = connections.clone();
+
+    // Assign role to new client
+    let id = Uuid::new_v4().to_string();
+    let player_role = if state.get_player_for_color(Player::One).await.is_none() {
+        Player::One
+    } else if state.get_player_for_color(Player::Two).await.is_none() {
+        Player::Two
+    } else {
+        Player::Spectator
+    };
+    {
+        let mut map = state.player_map.write().await;
+        map.insert(id.clone(), player_role);
+    }
+    {
+        let game = state.game.read().await;
+        let active_player = game.current_player();
+        state
+            .set_player_for_color(player_role, Some(id.clone()))
+            .await;
+        let join_msg = WsMsg::ServerJoin {
+            id: id.clone(),
+            client_player: player_role,
+            active_player,
+            game_board: game.get_board().get_board_array(),
+        };
+        // let json = serde_json::to_value(&join_msg).unwrap();
+        info!("sending message {:?}", join_msg);
+        let conns_guard = conns.read().await;
+        for (_, conn) in conns_guard.iter() {
+            let _ = conn.tx.send(join_msg.clone());
+        }
+    }
+
+    // Handle incoming messages and broadcast to all
     let recv_task = tokio::spawn(async move {
         while let Some(msg) = receiver.next().await {
             if let Ok(msg) = msg {
@@ -121,6 +157,30 @@ async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) 
                                     state.set_player_for_color(color, None).await;
                                 }
                             }
+                            WsMsg::ClientSurrender { player } => {
+                                info!("player {} has surrendered", player);
+                                let mut game = state.game.write().await;
+                                game.surrender(player);
+                                if let Some(winner) = game.get_winner() {
+                                    let msg = WsMsg::GameOver { winner };
+                                    info!("sending message {:?}", msg);
+                                    let conns_guard = conns.read().await;
+                                    for (_, conn) in conns_guard.iter() {
+                                        let _ = conn.tx.send(msg.clone());
+                                    }
+                                }
+                            }
+                            WsMsg::NewGame => {
+                                info!("making new game");
+                                let mut game = state.game.write().await;
+                                *game = Game::new();
+                                let msg = WsMsg::NewGame;
+                                info!("sending message {:?}", msg);
+                                let conns_guard = conns.read().await;
+                                for (_, conn) in conns_guard.iter() {
+                                    let _ = conn.tx.send(msg.clone());
+                                }
+                            }
                             _ => {}
                         }
                     } else {
@@ -130,6 +190,7 @@ async fn websocket_connection(socket: WebSocket, State(state): State<AppState>) 
             }
         }
         info!("connection closed?");
+        state.leave_player(id).await;
     });
 
     // Handle outgoing messages

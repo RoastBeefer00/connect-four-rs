@@ -133,6 +133,14 @@ impl Game {
         }
         None
     }
+
+    pub fn surrender(&mut self, player_surrendering: Player) {
+        if player_surrendering == Player::One {
+            self.status = GameStatus::Won(Player::Two)
+        } else if player_surrendering == Player::Two {
+            self.status = GameStatus::Won(Player::One)
+        }
+    }
 }
 
 impl Default for Game {

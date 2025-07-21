@@ -25,5 +25,5 @@ pub struct PieceAnimationComplete {
 
 #[derive(Event)]
 pub struct GameOverEvent {
-    pub winner: Option<crate::game_logic::Player>,
+    pub winner: Player,
 }

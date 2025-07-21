@@ -23,3 +23,6 @@ devenv.local.nix
 
 .opencode
 OpenCode.md
+
+connect-four-bevy/dist/
+connect-four-server/dist/
