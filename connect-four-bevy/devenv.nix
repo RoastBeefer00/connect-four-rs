@@ -22,6 +22,7 @@
     udev
     clang
     lld
+    trunk
     # If on x11
     xorg.libX11
     xorg.libX11
@@ -36,7 +37,13 @@
   ];
 
   # https://devenv.sh/languages/
-  languages.rust.enable = true;
+  languages.rust = {
+    enable = true;
+    targets = [
+      "wasm32-unknown-unknown"
+    ];
+    channel = "stable";
+  };
 
   # https://devenv.sh/processes/
   # processes.cargo-watch.exec = "cargo-watch";
@@ -45,21 +52,50 @@
   # services.postgres.enable = true;
 
   # https://devenv.sh/scripts/
-  scripts.hello.exec = ''
-    echo hello from $GREET
-  '';
+  scripts = {
+    web-run.exec = ''
+      trunk serve
+    '';
+    web-build.exec = ''
+      #!/bin/bash
 
-  enterShell = ''
-    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${
-      pkgs.lib.makeLibraryPath [
-        pkgs.alsa-lib
-        pkgs.udev
-        pkgs.vulkan-loader
-        pkgs.wayland
-        pkgs.libxkbcommon
-      ]
-    }"
-  '';
+      set -e  # Exit on any error
+
+      echo "Running trunk build..."
+      trunk build
+
+      echo "Looking for .wasm files in dist folder..."
+      wasm_files=$(find dist -name "*.wasm" -type f)
+
+      if [ -z "$wasm_files" ]; then
+          echo "No .wasm files found in dist folder"
+          exit 1
+      fi
+
+      echo "Found .wasm files:"
+      echo "$wasm_files"
+
+      echo "Compressing with gzip -9..."
+      for wasm_file in $wasm_files; do
+          echo "Compressing: $wasm_file"
+          gzip -9 "$wasm_file"
+      done
+
+      echo "Done!"
+    '';
+
+    enterShell = ''
+      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${
+        pkgs.lib.makeLibraryPath [
+          pkgs.alsa-lib
+          pkgs.udev
+          pkgs.vulkan-loader
+          pkgs.wayland
+          pkgs.libxkbcommon
+        ]
+      }"
+    '';
+  };
 
   # https://devenv.sh/tasks/
   # tasks = {
