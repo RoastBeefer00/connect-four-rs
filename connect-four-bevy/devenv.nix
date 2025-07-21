@@ -83,19 +83,19 @@
 
       echo "Done!"
     '';
-
-    enterShell = ''
-      export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${
-        pkgs.lib.makeLibraryPath [
-          pkgs.alsa-lib
-          pkgs.udev
-          pkgs.vulkan-loader
-          pkgs.wayland
-          pkgs.libxkbcommon
-        ]
-      }"
-    '';
   };
+
+  enterShell = ''
+    export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:${
+      pkgs.lib.makeLibraryPath [
+        pkgs.alsa-lib
+        pkgs.udev
+        pkgs.vulkan-loader
+        pkgs.wayland
+        pkgs.libxkbcommon
+      ]
+    }"
+  '';
 
   # https://devenv.sh/tasks/
   # tasks = {
